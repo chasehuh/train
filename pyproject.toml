@@ -1,15 +1,21 @@
 [project]
 name = "train"
 version = "0.1.0"
-description = "Add your description here"
+description = "SRT/Korail train tools and Railway SRT cloud-IP smoke worker"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "requests>=2.32.0",
+]
 
 [dependency-groups]
 # core cli deps (fill as needed)
 cli = ["typer>=0.12.0", "rich>=13.0.0", "pydantic>=2.9"]
-# srt backend deps
-srt = ["requests"]
+# srt backend deps (also covered by project.dependencies)
+srt = ["requests>=2.32.0"]
 # korail backend deps (requires AES CBC impl)
-korail = ["requests", "pycryptodome"]
+korail = ["requests>=2.32.0", "pycryptodome"]
+
+[project.optional-dependencies]
+cli = ["typer>=0.12.0", "rich>=13.0.0", "pydantic>=2.9"]
+korail = ["pycryptodome"]
