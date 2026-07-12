@@ -95,7 +95,7 @@ def maybe_start_health_server() -> None:
 
         def do_POST(self) -> None:  # noqa: N802
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
-            if path != "/rail/login":
+            if path not in ("/rail/login", "/rail/search"):
                 self._json(404, {"ok": False, "error": "not_found"})
                 return
 
@@ -120,6 +120,44 @@ def maybe_start_health_server() -> None:
                         "ok": False,
                         "error": "validation_failed",
                         "message": "carrier must be srt or korail",
+                    },
+                )
+                return
+
+            if path == "/rail/search":
+                from worker.rail_search import search_trains
+
+                trains, err = search_trains(
+                    carrier,  # type: ignore[arg-type]
+                    user_id,
+                    password,
+                    str(data.get("dep") or ""),
+                    str(data.get("arr") or ""),
+                    str(data.get("date") or ""),
+                    str(data.get("time") or "000000"),
+                    available_only=bool(data.get("available_only", False)),
+                )
+                if err is not None:
+                    self._json(
+                        err.status,
+                        {
+                            "ok": False,
+                            "error": err.error,
+                            "message": err.message,
+                            "carrier": carrier,
+                        },
+                    )
+                    return
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "carrier": carrier,
+                        "dep": str(data.get("dep") or "").strip(),
+                        "arr": str(data.get("arr") or "").strip(),
+                        "date": str(data.get("date") or "").strip(),
+                        "time": str(data.get("time") or "000000").strip() or "000000",
+                        "trains": trains or [],
                     },
                 )
                 return

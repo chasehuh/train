@@ -15,6 +15,7 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 const WORKER_VERIFY_URL = (process.env.WORKER_VERIFY_URL || "").replace(/\/$/, "");
 const ALLOW_ENV_CREDS = process.env.ALLOW_ENV_CREDS === "true";
 const VERIFY_TIMEOUT_MS = Number(process.env.WORKER_VERIFY_TIMEOUT_MS || 15000);
+const SEARCH_TIMEOUT_MS = Number(process.env.WORKER_SEARCH_TIMEOUT_MS || 30000);
 
 if (!DATABASE_URL) {
   console.error("DATABASE_URL is required");
@@ -98,6 +99,19 @@ const RailLoginSchema = z.object({
   carrier: z.enum(["srt", "korail"]),
   id: z.string().min(1),
   pw: z.string().min(1),
+});
+
+const TrainSearchSchema = z.object({
+  carrier: z.enum(["srt", "korail"]),
+  dep: z.string().min(1),
+  arr: z.string().min(1),
+  date: z.string().regex(/^\d{8}$/),
+  time: z.string().regex(/^\d{6}$/).default("000000"),
+  available_only: z.boolean().optional().default(false),
+  credentials: z.object({
+    id: z.string().min(1),
+    pw: z.string().min(1),
+  }),
 });
 
 function requireApiKey(authHeader: string | undefined) {
@@ -203,6 +217,98 @@ app.post("/v1/rail/login", async (c) => {
     id_normalized: idNormalized,
     id_masked: idMasked,
     verified_at: verifiedAt,
+  });
+});
+
+app.post("/v1/trains/search", async (c) => {
+  const body = TrainSearchSchema.parse(await c.req.json());
+  const id = normalizeRailId(body.carrier, body.credentials.id);
+
+  if (!WORKER_VERIFY_URL) {
+    return c.json(
+      {
+        ok: false,
+        error: "search_unavailable",
+        message: "WORKER_VERIFY_URL is not configured",
+      },
+      503,
+    );
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${WORKER_VERIFY_URL}/rail/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        carrier: body.carrier,
+        id,
+        pw: body.credentials.pw,
+        dep: body.dep,
+        arr: body.arr,
+        date: body.date,
+        time: body.time,
+        available_only: body.available_only,
+      }),
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "Error";
+    console.error(`train search transport error: ${name}`);
+    return c.json(
+      {
+        ok: false,
+        error: "search_unavailable",
+        message: "could not reach worker search endpoint",
+      },
+      503,
+    );
+  }
+
+  const text = await upstream.text();
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      data = { error: "invalid_upstream", message: text.slice(0, 200) };
+    }
+  }
+
+  if (!upstream.ok || data.ok !== true) {
+    const status =
+      upstream.status === 400
+        ? 400
+        : upstream.status === 401
+          ? 401
+          : upstream.status === 404
+            ? 503
+            : upstream.status >= 500
+              ? 502
+              : 502;
+    return c.json(
+      {
+        ok: false,
+        error: typeof data.error === "string" ? data.error : "search_failed",
+        message:
+          typeof data.message === "string"
+            ? data.message
+            : `${body.carrier} search failed`,
+        carrier: body.carrier,
+      },
+      status,
+    );
+  }
+
+  return c.json({
+    ok: true,
+    carrier: body.carrier,
+    dep: body.dep,
+    arr: body.arr,
+    date: body.date,
+    time: body.time,
+    trains: Array.isArray(data.trains) ? data.trains : [],
+    source: "live",
   });
 });
 
