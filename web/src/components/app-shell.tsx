@@ -186,10 +186,10 @@ export function AppShell({
   ).length;
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col">
-      <header className="shrink-0 border-b border-[var(--line)] bg-[rgba(10,12,16,0.72)] px-4 py-3 backdrop-blur-md md:px-6">
-        <div className="mx-auto flex w-full max-w-[90rem] items-center justify-between gap-3">
-          <div className="min-w-0">
+    <div className="flex h-dvh min-h-0 flex-col overflow-x-hidden">
+      <header className="safe-top shrink-0 border-b border-[var(--line)] bg-[rgba(10,12,16,0.72)] backdrop-blur-md">
+        <div className="safe-x mx-auto flex w-full max-w-[90rem] flex-wrap items-start justify-between gap-x-3 gap-y-2 py-3">
+          <div className="min-w-0 flex-1 basis-[10rem]">
             <p className="truncate text-sm font-semibold tracking-tight text-[var(--text)]">
               train.chasehuh
             </p>
@@ -197,7 +197,7 @@ export function AppShell({
               {railSession.carrier} · {railSession.id_masked} · search → confirm → watch
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
             <span className="chip text-[var(--accent)]">closed</span>
             <span className="chip text-[var(--muted)]">
               <span
@@ -214,14 +214,14 @@ export function AppShell({
             <button
               type="button"
               onClick={() => void logoutRail()}
-              className="rounded-full border border-[var(--line)] bg-[var(--system-bg)] px-2.5 py-1 font-mono text-[10px] text-[var(--muted)] transition hover:border-[rgba(232,165,75,0.35)] hover:text-[var(--text)]"
+              className="btn btn-ghost min-h-9 px-3 py-1.5"
             >
               Rail out
             </button>
             <button
               type="button"
               onClick={() => void lock()}
-              className="rounded-full border border-[var(--line)] bg-[var(--system-bg)] px-2.5 py-1 font-mono text-[10px] text-[var(--muted)] transition hover:border-[rgba(232,165,75,0.35)] hover:text-[var(--text)]"
+              className="btn btn-ghost min-h-9 px-3 py-1.5"
             >
               Lock
             </button>
@@ -229,7 +229,7 @@ export function AppShell({
         </div>
       </header>
 
-      <div className="mx-auto w-full max-w-[90rem] shrink-0 px-4 pt-3 md:px-6">
+      <div className="safe-x mx-auto w-full max-w-[90rem] shrink-0 pt-3">
         <ActivityStrip
           jobs={jobs}
           lastSyncedAt={lastSyncedAt}
@@ -238,12 +238,12 @@ export function AppShell({
       </div>
 
       {toasts.length > 0 ? (
-        <div className="mx-auto flex w-full max-w-[90rem] shrink-0 flex-col gap-1.5 px-4 pt-2 md:px-6">
+        <div className="safe-x mx-auto flex w-full max-w-[90rem] shrink-0 flex-col gap-1.5 pt-2">
           {toasts.map((toast) => (
             <p
               key={toast.id}
               role="status"
-              className={`rise rounded-full border px-3 py-1.5 text-center font-mono text-[11px] ${
+              className={`rise break-words rounded-2xl border px-3 py-2 text-center font-mono text-[11px] sm:rounded-full sm:py-1.5 ${
                 toast.kind === "ok"
                   ? "border-[rgba(107,201,138,0.35)] bg-[rgba(107,201,138,0.08)] text-[var(--ok)]"
                   : toast.kind === "danger"

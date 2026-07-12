@@ -30,6 +30,7 @@ html,
 body {
   min-height: 100%;
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -47,6 +48,7 @@ body {
     ),
     linear-gradient(175deg, #0d1016 0%, var(--bg0) 50%, #080a0e 100%);
   font-family: var(--font-sans), ui-sans-serif, sans-serif;
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -144,23 +146,39 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
+  line-height: 1.3;
 }
 
 .field {
   width: 100%;
-  padding: 0.55rem 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(17, 20, 27, 0.85);
   color: var(--text);
-  font-size: 0.875rem;
+  /* 16px avoids iOS input zoom on narrow viewports */
+  font-size: 1rem;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (min-width: 640px) {
+  .field {
+    min-height: 2.5rem;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+  }
 }
 
 .field:focus {
   border-color: rgba(232, 165, 75, 0.45);
   box-shadow: 0 0 0 1px rgba(232, 165, 75, 0.2);
+}
+
+.field:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .field::placeholder {
@@ -171,14 +189,85 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  max-width: 100%;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--system-bg);
-  padding: 0.2rem 0.65rem;
+  padding: 0.3rem 0.7rem;
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.65rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.65rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: brightness 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: #14110c;
+}
+
+.btn-primary:hover:enabled {
+  filter: brightness(1.05);
+}
+
+.btn-ghost {
+  border-color: var(--line);
+  background: var(--system-bg);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.btn-ghost:hover:enabled {
+  border-color: rgba(232, 165, 75, 0.35);
+  color: var(--text);
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+.safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+@media (min-width: 768px) {
+  .safe-x {
+    padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+.composer-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
 }
 
 .status-queued {

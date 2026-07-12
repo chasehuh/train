@@ -24,9 +24,9 @@ export function ActivityStrip({
         })}`;
 
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--system-bg)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
+    <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--system-bg)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="text-[11px] font-medium tracking-[0.14em] text-[var(--muted)] uppercase">
             Activity
           </span>
@@ -39,7 +39,7 @@ export function ActivityStrip({
           <span className="chip status-queued">{queued} queued</span>
           <span className="chip status-running">{running} running</span>
         </div>
-        <span className="font-mono text-[10px] text-[var(--muted)]">
+        <span className="shrink-0 font-mono text-[10px] text-[var(--muted)]">
           {syncing ? "refresh…" : syncedLabel}
         </span>
       </div>

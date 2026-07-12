@@ -136,10 +136,48 @@ export type RailLoginResponse = {
 };
 
 export async function verifyRailLogin(body: RailLoginBody) {
-  return railwayFetch("/v1/rail/login", {
+  const { baseUrl, apiKey } = apiConfig();
+  const res = await fetch(`${baseUrl}/v1/rail/login`, {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
-  }) as Promise<RailLoginResponse>;
+    cache: "no-store",
+  });
+
+  const text = await res.text();
+  let data: RailLoginResponse = { ok: false };
+  if (text) {
+    try {
+      data = JSON.parse(text) as RailLoginResponse;
+    } catch {
+      data = { ok: false, error: text, message: text };
+    }
+  }
+
+  // Auth / validation failures are structured responses for the login UI.
+  if (res.status === 401 || res.status === 400) {
+    return {
+      ok: false,
+      error: data.error || "login_failed",
+      message: data.message || "login failed",
+      carrier: data.carrier,
+      id_masked: data.id_masked,
+      id_normalized: data.id_normalized,
+    };
+  }
+
+  if (!res.ok) {
+    const message = data.message || data.error || `Railway API ${res.status}`;
+    const err = new Error(message) as Error & { status: number; data: unknown };
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+
+  return data;
 }
 
 export type TrainSearchBody = {

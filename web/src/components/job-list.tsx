@@ -64,11 +64,11 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
 
   if (jobs.length === 0) {
     return (
-      <div className="rise flex h-full min-h-[40vh] flex-col items-center justify-center px-2 text-center">
+      <div className="rise flex h-full min-h-[32vh] flex-col items-center justify-center px-2 pb-6 text-center sm:min-h-[40vh]">
         <p className="font-mono text-[11px] tracking-[0.2em] text-[var(--accent)] uppercase">
           Live activity
         </p>
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[var(--text)]">
+        <h2 className="mt-3 text-xl font-semibold tracking-tight text-[var(--text)] sm:text-2xl">
           No watches yet
         </h2>
         <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">
@@ -80,7 +80,7 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
   }
 
   return (
-    <ul className="flex flex-col gap-2 pb-4">
+    <ul className="flex flex-col gap-2 pb-6">
       {jobs.map((job) => {
         const cancelable =
           job.status === "queued" || job.status === "running";
@@ -96,7 +96,7 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
         return (
           <li
             key={job.id}
-            className={`message-in rounded-2xl border border-[var(--line)] bg-[rgba(17,20,27,0.55)] px-4 py-3 ${
+            className={`message-in overflow-hidden rounded-2xl border border-[var(--line)] bg-[rgba(17,20,27,0.55)] px-3 py-3 sm:px-4 ${
               highlightedId === job.id ? "row-flash" : ""
             }`}
           >
@@ -123,7 +123,7 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
                   </span>
                 </div>
 
-                <p className="text-sm font-medium tracking-tight text-[var(--text)]">
+                <p className="break-words text-sm font-medium tracking-tight text-[var(--text)]">
                   {job.dep} → {job.arr}{" "}
                   <span className="font-mono text-[12px] font-normal text-[var(--muted)]">
                     {job.travel_date} · {job.dep_time}
@@ -147,7 +147,7 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
                 </div>
 
                 {job.error ? (
-                  <p className="font-mono text-[11px] text-[var(--danger)]">
+                  <p className="break-words font-mono text-[11px] text-[var(--danger)]">
                     {job.error}
                   </p>
                 ) : null}
@@ -157,7 +157,7 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
                 <button
                   type="button"
                   onClick={() => onCancel(job.id)}
-                  className="shrink-0 rounded-full border border-[rgba(224,107,107,0.35)] px-3 py-1.5 font-mono text-[11px] tracking-wide text-[var(--danger)] uppercase transition hover:border-[var(--danger)] hover:bg-[rgba(224,107,107,0.08)]"
+                  className="min-h-10 shrink-0 rounded-full border border-[rgba(224,107,107,0.35)] px-3.5 py-2 font-mono text-[11px] tracking-wide text-[var(--danger)] uppercase transition hover:border-[var(--danger)] hover:bg-[rgba(224,107,107,0.08)]"
                 >
                   Cancel
                 </button>
