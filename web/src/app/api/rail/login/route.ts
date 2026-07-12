@@ -45,6 +45,8 @@ export async function POST(request: Request) {
           ok: false,
           error: data.error || "login_failed",
           message: data.message || "login failed",
+          carrier,
+          id_masked: data.id_masked || maskRailId(id),
         },
         { status: 401 },
       );
@@ -71,20 +73,28 @@ export async function POST(request: Request) {
     const e = err as Error & { status?: number; data?: unknown };
     const data =
       e.data && typeof e.data === "object" ? (e.data as Record<string, unknown>) : {};
+    const status = e.status || 502;
+    const upstreamMessage =
+      typeof data.message === "string"
+        ? data.message
+        : e.message || "login failed";
+    const message =
+      status === 404
+        ? "Rail login API not found on Railway (deploy api+worker with /v1/rail/login and WORKER_VERIFY_URL)."
+        : upstreamMessage;
     return NextResponse.json(
       {
         ok: false,
         error:
           typeof data.error === "string"
             ? data.error
-            : e.message || "upstream_error",
-        message:
-          typeof data.message === "string"
-            ? data.message
-            : e.message || "login failed",
+            : status === 404
+              ? "rail_login_api_missing"
+              : e.message || "upstream_error",
+        message,
         details: e.data,
       },
-      { status: e.status || 502 },
+      { status },
     );
   }
 }

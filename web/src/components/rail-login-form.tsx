@@ -71,7 +71,9 @@ export function RailLoginForm({ onAuthenticated }: RailLoginFormProps) {
             </h1>
             <p className="text-sm leading-relaxed text-[var(--muted)]">
               Site access is unlocked. Verify your rail membership so jobs run as
-              your account — not a shared server env login.
+              your account — not a shared server env login. For SRT, use membership
+              digits (hyphens OK), a phone as 010-xxxx-xxxx, or email — and the
+              website password, not a card PIN.
             </p>
           </header>
 
