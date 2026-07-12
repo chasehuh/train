@@ -62,8 +62,35 @@ pnpm dev
 3. Create watch/reserve job (no password fields) → session credentials attached
 4. Job list polls every 3s; **Rail logout** clears rail session; **Lock site** clears gate only
 
-Vercel: `web/vercel.json` is a minimal Next.js hint. Deploy the `web/`
-directory and set the env vars above in the Vercel project.
+### Vercel deploy (CLI + GitHub Actions)
+
+Hobby-friendly model: **no Vercel Git integration** and the GitHub repo stays
+**private**. CI deploys from `web/` with the Vercel CLI under personal team
+`cwhuh` (project `train`).
+
+Manual production deploy (already works locally):
+
+```bash
+cd web && vercel deploy --prod --scope cwhuh --yes
+```
+
+Automated deploys: `.github/workflows/deploy-web.yml`
+
+- Push to `main` (when `web/` changes) → production (`vercel pull` →
+  `vercel build --prod` → `vercel deploy --prebuilt --prod`)
+- PRs targeting `main` (when `web/` changes) → preview deploy
+
+Add these **GitHub Actions secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `VERCEL_TOKEN` | Create at [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+| `VERCEL_ORG_ID` | `team_kInQ8PpenJ7hKPoGui5Q2VWf` |
+| `VERCEL_PROJECT_ID` | `prj_09Sft1Zkr6xU1aavYT5gzYyf5wRU` |
+
+Also set the app env vars (`RAILWAY_API_URL`, `RAILWAY_API_KEY`, `GATE_*`,
+`APP_SECRET`, …) in the Vercel project dashboard so `vercel pull` injects them
+into CI builds.
 
 <!-- TODO: Google OAuth for multi-user identity (out of scope). -->
 
