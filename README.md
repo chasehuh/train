@@ -103,6 +103,7 @@ curl -sS -X POST "$API_URL/v1/jobs" \
 falls back to `SRT_*` / `KORAIL_*` env vars.
 
 ### Autoscaling
-Not enabled. Start with **1 worker replica**. Scale horizontally only when
-queue depth stays high; more replicas share one egress IP and can worsen
-rail rate-limits.
+Railway has **vertical** autoscaling (CPU/RAM) but **no queue-based horizontal
+autoscaler**. For family concurrent use we run a fixed **3 worker replicas**
+(`us-east`). Jobs are claimed with `FOR UPDATE SKIP LOCKED`, so each replica
+picks a different job safely.
