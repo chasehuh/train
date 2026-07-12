@@ -3,15 +3,18 @@
 
 Set WORKER_MODE=queue (default when DATABASE_URL is set) for multi-job mode.
 Set WORKER_MODE=smoke to run the legacy single-env smoke job once.
+
+Queue mode runs up to WORKER_CONCURRENCY (default 3) jobs in parallel via
+ThreadPoolExecutor on a single process/replica.
 """
 
 from __future__ import annotations
 
 import os
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 from uuid import UUID
 
 import requests
@@ -22,6 +25,8 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from worker.db import bump_attempts, claim_next_job, connect, ensure_schema, finish_job, get_job
+from worker.exceptions import JobCanceled
+from worker.supervisor import install_sigterm_flag, parse_concurrency, run_queue_supervisor
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -82,6 +87,21 @@ def maybe_start_health_server() -> None:
     print(f"[{datetime.now():%H:%M:%S}] health listening on :{port}")
 
 
+def make_cancel_check(job_id: UUID) -> Callable[[], bool]:
+    """Return True when the job row is no longer ``running`` (canceled)."""
+
+    def should_stop() -> bool:
+        try:
+            with connect() as conn:
+                latest = get_job(conn, job_id)
+            return bool(latest and latest["status"] == "canceled")
+        except Exception as exc:  # pragma: no cover
+            print(f"[{datetime.now():%H:%M:%S}] job={job_id} cancel check error: {exc}")
+            return False
+
+    return should_stop
+
+
 def run_one_job(job: dict) -> None:
     job_id = job["id"]
     carrier = job["carrier"]
@@ -93,15 +113,17 @@ def run_one_job(job: dict) -> None:
     with connect() as conn:
         bump_attempts(conn, job_id)
 
+    cancel_check = make_cancel_check(job_id)
+
     try:
         if carrier == "srt":
             from worker.runners_srt import run_srt_job
 
-            result = run_srt_job(job, notify=_log)
+            result = run_srt_job(job, notify=_log, should_stop=cancel_check)
         elif carrier == "korail":
             from worker.runners_korail import run_korail_job
 
-            result = run_korail_job(job, notify=_log)
+            result = run_korail_job(job, notify=_log, should_stop=cancel_check)
         else:
             raise RuntimeError(f"unsupported carrier: {carrier}")
 
@@ -118,6 +140,8 @@ def run_one_job(job: dict) -> None:
             f"{job['travel_date']} {job['dep_time']}\n{result.get('message')}"
         )
         print(f"[{datetime.now():%H:%M:%S}] job {job_id} succeeded")
+    except JobCanceled:
+        print(f"[{datetime.now():%H:%M:%S}] job {job_id} canceled during poll")
     except Exception as exc:
         err = f"{type(exc).__name__}: {exc}"
         with connect() as conn:
@@ -131,28 +155,33 @@ def run_one_job(job: dict) -> None:
 
 def queue_loop() -> int:
     maybe_start_health_server()
+    concurrency = parse_concurrency(_env("WORKER_CONCURRENCY", "3"))
+    idle_sleep = float(_env("QUEUE_IDLE_SLEEP", "1.5") or "1.5")
     egress = get_egress_ip()
-    print(f"[{datetime.now():%H:%M:%S}] queue worker start egress_ip={egress}")
-    notify_telegram(f"Train queue worker online\negress_ip={egress}")
+    print(
+        f"[{datetime.now():%H:%M:%S}] queue worker start egress_ip={egress} "
+        f"concurrency={concurrency}"
+    )
+    notify_telegram(
+        f"Train queue worker online\negress_ip={egress}\nconcurrency={concurrency}"
+    )
 
     with connect() as conn:
         ensure_schema(conn)
 
-    idle_sleep = float(_env("QUEUE_IDLE_SLEEP", "1.5") or "1.5")
-    while True:
-        try:
-            with connect() as conn:
-                job = claim_next_job(conn)
-            if not job:
-                time.sleep(idle_sleep)
-                continue
-            run_one_job(job)
-        except Exception as exc:
-            print(
-                f"[{datetime.now():%H:%M:%S}] queue loop error: {type(exc).__name__}: {exc}",
-                file=sys.stderr,
-            )
-            time.sleep(3)
+    stop = install_sigterm_flag()
+
+    def claim_job() -> dict | None:
+        with connect() as conn:
+            return claim_next_job(conn)
+
+    run_queue_supervisor(
+        claim_job=claim_job,
+        run_job=run_one_job,
+        concurrency=concurrency,
+        idle_sleep=idle_sleep,
+        should_stop=stop,
+    )
     return 0
 
 

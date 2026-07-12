@@ -8,7 +8,10 @@ from typing import Any, Callable
 
 from korail_backend.korail2 import Korail, ReserveOption
 
+from worker.exceptions import JobCanceled
+
 NotifyFn = Callable[[str], None]
+StopFn = Callable[[], bool]
 
 
 def resolve_korail_credentials(job: dict[str, Any]) -> tuple[str, str]:
@@ -16,18 +19,32 @@ def resolve_korail_credentials(job: dict[str, Any]) -> tuple[str, str]:
 
     if job.get("credentials_enc"):
         data = decrypt_credentials(job["credentials_enc"])
-        return str(data["id"]), str(data["pw"])
-    user = os.environ.get("KORAIL_ID")
-    pw = os.environ.get("KORAIL_PW")
-    if not user or not pw:
-        raise RuntimeError(
-            "Korail credentials missing (job credentials_enc or KORAIL_ID/KORAIL_PW)"
-        )
+        user, pw = str(data["id"]), str(data["pw"])
+    else:
+        user = os.environ.get("KORAIL_ID")
+        pw = os.environ.get("KORAIL_PW")
+        if not user or not pw:
+            raise RuntimeError(
+                "Korail credentials missing (job credentials_enc or KORAIL_ID/KORAIL_PW)"
+            )
+
+    # Membership IDs must not use phone-shaped hyphens (075-232-8289 is
+    # misclassified as phone). Keep real mobile numbers hyphenated.
+    digits = "".join(ch for ch in user if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("01"):
+        user = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    elif digits:
+        user = digits
     return user, pw
 
 
-def run_korail_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[str, Any]:
+def run_korail_job(
+    job: dict[str, Any],
+    notify: NotifyFn | None = None,
+    should_stop: StopFn | None = None,
+) -> dict[str, Any]:
     notify = notify or (lambda _msg: None)
+    should_stop = should_stop or (lambda: False)
 
     user, pw = resolve_korail_credentials(job)
     dep = job["dep"]
@@ -39,11 +56,6 @@ def run_korail_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[
     dry_run = bool(job["dry_run"])
     max_attempts = job.get("max_attempts")
 
-    # Phone-like IDs: normalize if 11 digits
-    digits = "".join(ch for ch in user if ch.isdigit())
-    if len(digits) == 11:
-        user = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
-
     korail = Korail(user, pw, auto_login=True)
     if not korail.logined:
         raise RuntimeError("Korail login failed")
@@ -52,6 +64,8 @@ def run_korail_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[
     success: list[str] = []
     attempt = 0
     while len(success) < target:
+        if should_stop():
+            raise JobCanceled(f"job {job['id']} canceled")
         attempt += 1
         if dry_run and max_attempts is not None and attempt > int(max_attempts):
             return {

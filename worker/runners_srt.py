@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime
 from typing import Any, Callable
 
 from srt_backend import SRT, SeatType
 from srt_backend.passenger import Adult
 
+from worker.exceptions import JobCanceled
+
 NotifyFn = Callable[[str], None]
+StopFn = Callable[[], bool]
 
 
 def resolve_srt_credentials(job: dict[str, Any]) -> tuple[str, str]:
@@ -26,8 +28,13 @@ def resolve_srt_credentials(job: dict[str, Any]) -> tuple[str, str]:
     return user, pw
 
 
-def run_srt_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[str, Any]:
+def run_srt_job(
+    job: dict[str, Any],
+    notify: NotifyFn | None = None,
+    should_stop: StopFn | None = None,
+) -> dict[str, Any]:
     notify = notify or (lambda _msg: None)
+    should_stop = should_stop or (lambda: False)
 
     user, pw = resolve_srt_credentials(job)
     dep = job["dep"]
@@ -46,6 +53,8 @@ def run_srt_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[str
     success: list[str] = []
     attempt = 0
     while len(success) < target:
+        if should_stop():
+            raise JobCanceled(f"job {job['id']} canceled")
         attempt += 1
         if dry_run and max_attempts is not None and attempt > int(max_attempts):
             return {
@@ -55,7 +64,6 @@ def run_srt_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[str
                 "reservations": success,
             }
 
-        # Cooperative cancel: caller may mark job canceled; runner checks via optional hook later.
         try:
             trains = srt.search_train(
                 dep,

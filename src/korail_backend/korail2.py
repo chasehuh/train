@@ -19,6 +19,8 @@ from datetime import timezone
 from Crypto.Util.Padding import pad
 from Crypto.Cipher import AES
 
+from .antibot import KorailAntiBotHelper
+
 try:
     # noinspection PyPackageRequirements
     import simplejson as json
@@ -61,7 +63,7 @@ KORAIL_PAYMENT_VOUCHER = "%s/ebizmw/PrdPkgBoucherView.do" % KORAIL_DOMAIN
 
 KORAIL_CODE = "%s.common.code.do" % KORAIL_MOBILE
 
-DEFAULT_USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 5.1.1; Nexus 4 Build/LMY48T)"
+DEFAULT_USER_AGENT = "Dalvik/2.1.0 (Linux; U; Android 13; SM-S928N Build/UP1A.231005.007)"
 
 
 def _get_utf8(data, key, default=None):
@@ -541,10 +543,8 @@ class SoldOutError(KorailError):
 # noinspection PyUnresolvedReferences,PyRedeclaration
 class Korail(object):
     """Korail object"""
-    _session = requests.session()
-
     _device = 'AD'
-    _version = '190617001'
+    _version = '250601002'
     _key = 'korail1234567890'
 
     _idx = None
@@ -552,15 +552,28 @@ class Korail(object):
     membership_number = None
     name = None
     email = None
+    last_login_error_code = None
+    last_login_error_message = None
 
     def __init__(self, korail_id, korail_pw, auto_login=True, want_feedback=False):
+        self._session = requests.Session()
         self._session.headers.update({'User-Agent': DEFAULT_USER_AGENT})
+        self._antibot = KorailAntiBotHelper(
+            device=self._device,
+            version=self._version,
+        )
         self.korail_id = korail_id
         self.korail_pw = korail_pw
         self.want_feedback = want_feedback
         self.logined = False
         if auto_login:
             self.login(korail_id, korail_pw)
+
+    def _auth_context(self, url, data=None):
+        headers, extra_data = self._antibot.build(url)
+        payload = dict(data or {})
+        payload.update(extra_data)
+        return headers, payload
 
     def __enc_password(self, password):
         url = KORAIL_CODE
@@ -634,8 +647,7 @@ When you want change ID using existing object,
         url = KORAIL_LOGIN
         data = {
             'Device': self._device,
-            'Version': '231231001', # HACK
-            #'Version': self._version,
+            'Version': self._version,
             # 2 : for membership number,
             # 4 : for phone number,
             # 5 : for email,
@@ -644,15 +656,19 @@ When you want change ID using existing object,
             'txtPwd': self.__enc_password(korail_pw),
             'idx': self._idx
         }
-
-        r = self._session.post(url, data=data)
+        headers, data = self._auth_context(url, data)
+        r = self._session.post(url, data=data, headers=headers)
         j = json.loads(r.text)
+        self.last_login_error_code = _get_utf8(j, 'h_msg_cd')
+        self.last_login_error_message = _get_utf8(j, 'h_msg_txt')
 
         if j['strResult'] == 'SUCC' and j.get('strMbCrdNo') is not None:
             self._key = j['Key']
             self.membership_number = j['strMbCrdNo']
             self.name = j['strCustNm']
             self.email = j['strEmailAdr']
+            self.last_login_error_code = None
+            self.last_login_error_message = None
             self.logined = True
             return True
         else:
@@ -836,9 +852,8 @@ There are 4 types of Passengers now, AdultPassenger, ChildPassenger, ToddlerPass
 
             'Version': self._version,
         }
-
-
-        r = self._session.get(url, params=data)
+        headers, data = self._auth_context(url, data)
+        r = self._session.post(url, data=data, headers=headers)
         j = json.loads(r.text)
 
         if self._result_check(j):
@@ -987,7 +1002,8 @@ When the train allows waiting, enroll for the waiting list instead of failing in
             data.update(psg.get_dict(index))
             index += 1
 
-        r = self._session.get(url, params=data)
+        headers, data = self._auth_context(url, data)
+        r = self._session.get(url, params=data, headers=headers)
         j = json.loads(r.text)
         if self._result_check(j):
             rsv_id = j['h_pnr_no']

@@ -153,8 +153,20 @@ curl -sS -X POST "$API_URL/v1/jobs" \
 `carrier` may be `srt` or `korail`. If `credentials` is omitted, the worker
 falls back to `SRT_*` / `KORAIL_*` env vars.
 
-### Autoscaling
+### Worker concurrency (not multi-replica)
+
 Railway has **vertical** autoscaling (CPU/RAM) but **no queue-based horizontal
-autoscaler**. For family concurrent use we run a fixed worker replica count
-(`us-east`). Jobs are claimed with `FOR UPDATE SKIP LOCKED`, so each replica
-picks a different job safely.
+autoscaler / HPA**. Keep the worker at **1 replica** (Serverless/App Sleep OFF)
+and raise in-process concurrency instead:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `WORKER_CONCURRENCY` | `3` | Max simultaneous poll jobs in one worker process (min 1, soft-cap 8) |
+| `QUEUE_IDLE_SLEEP` | `1.5` | Sleep seconds when no claimable jobs or all slots are full |
+
+Mental model: **1 replica + concurrency N ≈ N terminals** on one machine.
+With the default `WORKER_CONCURRENCY=3`, up to three SRT/Korail poll loops run
+in parallel via `ThreadPoolExecutor`. Jobs are still claimed with
+`FOR UPDATE SKIP LOCKED`, so threads never take the same row.
+
+`WORKER_CONCURRENCY=1` restores the previous serial behavior.
