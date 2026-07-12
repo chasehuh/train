@@ -105,13 +105,18 @@ def verify_rail_login(carrier: Carrier, raw_id: str, password: str) -> VerifyRes
 
             korail = Korail(user, pw, auto_login=True)
             if not korail.logined:
+                detail = (
+                    getattr(korail, "last_login_error_message", None)
+                    or getattr(korail, "last_login_error_code", None)
+                    or "Korail login failed"
+                )
                 return VerifyResult(
                     ok=False,
                     carrier=carrier,
                     id_normalized=user,
                     id_masked=mask_rail_id(user),
                     error="login_failed",
-                    message="Korail login failed",
+                    message=f"korail login failed: {detail}",
                 )
             return VerifyResult(
                 ok=True,
