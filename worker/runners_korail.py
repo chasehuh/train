@@ -16,26 +16,25 @@ StopFn = Callable[[], bool]
 
 def resolve_korail_credentials(job: dict[str, Any]) -> tuple[str, str]:
     from .crypto_util import decrypt_credentials
+    from .rail_verify import allow_env_creds, normalize_rail_id
 
     if job.get("credentials_enc"):
         data = decrypt_credentials(job["credentials_enc"])
         user, pw = str(data["id"]), str(data["pw"])
-    else:
+    elif allow_env_creds():
         user = os.environ.get("KORAIL_ID")
         pw = os.environ.get("KORAIL_PW")
         if not user or not pw:
             raise RuntimeError(
                 "Korail credentials missing (job credentials_enc or KORAIL_ID/KORAIL_PW)"
             )
+    else:
+        raise RuntimeError(
+            "Korail credentials missing: job requires credentials_enc "
+            "(set ALLOW_ENV_CREDS=true only for smoke/dev env fallback)"
+        )
 
-    # Membership IDs must not use phone-shaped hyphens (075-232-8289 is
-    # misclassified as phone). Keep real mobile numbers hyphenated.
-    digits = "".join(ch for ch in user if ch.isdigit())
-    if len(digits) == 11 and digits.startswith("01"):
-        user = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
-    elif digits:
-        user = digits
-    return user, pw
+    return normalize_rail_id("korail", user), pw
 
 
 def run_korail_job(

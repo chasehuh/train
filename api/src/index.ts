@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import pg from "pg";
 import { z } from "zod";
+import { maskRailId, normalizeRailId } from "./rail_ids.js";
 
 const { Pool } = pg;
 
@@ -11,6 +12,9 @@ const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.API_KEY || "";
 const APP_SECRET = process.env.APP_SECRET || "";
 const DATABASE_URL = process.env.DATABASE_URL || "";
+const WORKER_VERIFY_URL = (process.env.WORKER_VERIFY_URL || "").replace(/\/$/, "");
+const ALLOW_ENV_CREDS = process.env.ALLOW_ENV_CREDS === "true";
+const VERIFY_TIMEOUT_MS = Number(process.env.WORKER_VERIFY_TIMEOUT_MS || 15000);
 
 if (!DATABASE_URL) {
   console.error("DATABASE_URL is required");
@@ -90,6 +94,12 @@ const CreateJobSchema = z.object({
     .optional(),
 });
 
+const RailLoginSchema = z.object({
+  carrier: z.enum(["srt", "korail"]),
+  id: z.string().min(1),
+  pw: z.string().min(1),
+});
+
 function requireApiKey(authHeader: string | undefined) {
   if (!authHeader?.startsWith("Bearer ")) {
     throw new HTTPException(401, { message: "missing bearer token" });
@@ -116,11 +126,101 @@ app.use("/v1/*", async (c, next) => {
   await next();
 });
 
+app.post("/v1/rail/login", async (c) => {
+  const body = RailLoginSchema.parse(await c.req.json());
+  const id = normalizeRailId(body.carrier, body.id);
+
+  if (!WORKER_VERIFY_URL) {
+    return c.json(
+      {
+        ok: false,
+        error: "verify_unavailable",
+        message: "WORKER_VERIFY_URL is not configured",
+      },
+      503,
+    );
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${WORKER_VERIFY_URL}/rail/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ carrier: body.carrier, id, pw: body.pw }),
+      signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "Error";
+    console.error(`rail verify transport error: ${name}`);
+    return c.json(
+      {
+        ok: false,
+        error: "verify_unavailable",
+        message: "could not reach worker verify endpoint",
+      },
+      503,
+    );
+  }
+
+  const text = await upstream.text();
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      data = { error: "invalid_upstream", message: text.slice(0, 200) };
+    }
+  }
+
+  if (!upstream.ok || data.ok !== true) {
+    return c.json(
+      {
+        ok: false,
+        error: typeof data.error === "string" ? data.error : "login_failed",
+        message:
+          typeof data.message === "string"
+            ? data.message
+            : `${body.carrier} login failed`,
+        carrier: body.carrier,
+        id_masked: maskRailId(id),
+      },
+      upstream.status === 400 ? 400 : 401,
+    );
+  }
+
+  const verifiedAt =
+    typeof data.verified_at === "string"
+      ? data.verified_at
+      : new Date().toISOString();
+  const idMasked =
+    typeof data.id_masked === "string" ? data.id_masked : maskRailId(id);
+  const idNormalized =
+    typeof data.id_normalized === "string" ? data.id_normalized : id;
+
+  return c.json({
+    ok: true,
+    carrier: body.carrier,
+    id_normalized: idNormalized,
+    id_masked: idMasked,
+    verified_at: verifiedAt,
+  });
+});
+
 app.post("/v1/jobs", async (c) => {
   const body = CreateJobSchema.parse(await c.req.json());
+
+  if (!body.credentials && !ALLOW_ENV_CREDS) {
+    throw new HTTPException(400, {
+      message: "credentials required (set ALLOW_ENV_CREDS=true for env fallback)",
+    });
+  }
+
   const id = randomUUID();
   const credentialsEnc = body.credentials
-    ? encryptCredentialsPyCompat(body.credentials)
+    ? encryptCredentialsPyCompat({
+        id: normalizeRailId(body.carrier, body.credentials.id),
+        pw: body.credentials.pw,
+      })
     : null;
 
   const result = await pool.query(
@@ -199,5 +299,7 @@ app.onError((err, c) => {
 });
 
 await ensureSchema();
-console.log(`train api listening on :${PORT}`);
+console.log(
+  `train api listening on :${PORT} verify=${WORKER_VERIFY_URL || "unset"} allow_env_creds=${ALLOW_ENV_CREDS}`,
+);
 serve({ fetch: app.fetch, port: PORT });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUnlocked } from "@/lib/auth";
 import { createJob, listJobs, type CreateJobBody } from "@/lib/railway";
+import { getRailSession } from "@/lib/rail-session";
 
 function allowEnvCreds(): boolean {
   return process.env.ALLOW_ENV_CREDS === "true";
@@ -29,26 +30,39 @@ export async function POST(request: Request) {
   if (locked) return locked;
 
   try {
-    const body = (await request.json()) as CreateJobBody & {
-      credentials?: { id?: string; pw?: string };
-    };
+    const body = (await request.json()) as CreateJobBody;
+    const session = await getRailSession();
 
-    const id = body.credentials?.id?.trim() ?? "";
-    const pw = body.credentials?.pw?.trim() ?? "";
-
-    if ((!id || !pw) && !allowEnvCreds()) {
+    if (!session && !allowEnvCreds()) {
       return NextResponse.json(
         {
-          error: "credentials_required",
-          message:
-            "SRT/Korail id and password are required (or set ALLOW_ENV_CREDS=true for env fallback)",
+          error: "rail_session_required",
+          message: "SRT/Korail rail login required before creating jobs",
+        },
+        { status: 401 },
+      );
+    }
+
+    if (session && body.carrier && body.carrier !== session.carrier) {
+      return NextResponse.json(
+        {
+          error: "carrier_mismatch",
+          message: `job carrier must match rail session (${session.carrier})`,
         },
         { status: 400 },
       );
     }
 
+    const carrier = session?.carrier ?? body.carrier;
+    if (!carrier) {
+      return NextResponse.json(
+        { error: "validation_failed", message: "carrier is required" },
+        { status: 400 },
+      );
+    }
+
     const payload: CreateJobBody = {
-      carrier: body.carrier,
+      carrier,
       dep: body.dep,
       arr: body.arr,
       date: body.date,
@@ -60,8 +74,16 @@ export async function POST(request: Request) {
       max_attempts: body.max_attempts ?? undefined,
     };
 
-    if (id && pw) {
-      payload.credentials = { id, pw };
+    if (session) {
+      payload.credentials = { id: session.id, pw: session.pw };
+    } else if (!allowEnvCreds()) {
+      return NextResponse.json(
+        {
+          error: "credentials_required",
+          message: "rail session credentials missing",
+        },
+        { status: 400 },
+      );
     }
 
     const data = await createJob(payload);

@@ -118,3 +118,26 @@ export async function cancelJob(id: string) {
     method: "POST",
   }) as Promise<{ job: PublicJob }>;
 }
+
+export type RailLoginBody = {
+  carrier: "srt" | "korail";
+  id: string;
+  pw: string;
+};
+
+export type RailLoginResponse = {
+  ok: boolean;
+  carrier?: "srt" | "korail";
+  id_normalized?: string;
+  id_masked?: string;
+  verified_at?: string;
+  error?: string;
+  message?: string;
+};
+
+export async function verifyRailLogin(body: RailLoginBody) {
+  return railwayFetch("/v1/rail/login", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }) as Promise<RailLoginResponse>;
+}

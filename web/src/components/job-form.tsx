@@ -1,19 +1,23 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import type { RailSessionSummary } from "@/components/rail-login-form";
 import { todayKstYyyymmdd } from "@/lib/date";
 import type { PublicJob } from "@/lib/railway";
 
 type JobFormProps = {
   onCreated: (job: PublicJob) => void;
-  allowEnvCreds: boolean;
+  railSession: RailSessionSummary;
 };
 
-export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
+export function JobForm({ onCreated, railSession }: JobFormProps) {
   const defaultDate = useMemo(() => todayKstYyyymmdd(), []);
-  const [carrier, setCarrier] = useState<"srt" | "korail">("srt");
-  const [dep, setDep] = useState("동대구");
-  const [arr, setArr] = useState("수서");
+  const [dep, setDep] = useState(
+    railSession.carrier === "srt" ? "동대구" : "대전",
+  );
+  const [arr, setArr] = useState(
+    railSession.carrier === "srt" ? "수서" : "서울",
+  );
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState("220800");
   const [target, setTarget] = useState(1);
@@ -21,8 +25,6 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
   const [intervalSec, setIntervalSec] = useState(3);
   const [dryRun, setDryRun] = useState(true);
   const [maxAttempts, setMaxAttempts] = useState(5);
-  const [credId, setCredId] = useState("");
-  const [credPw, setCredPw] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,7 +43,7 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
     }
 
     const payload: Record<string, unknown> = {
-      carrier,
+      carrier: railSession.carrier,
       dep: dep.trim(),
       arr: arr.trim(),
       date: date.trim(),
@@ -52,10 +54,6 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
       dry_run: dryRun,
       max_attempts: dryRun ? maxAttempts : null,
     };
-
-    if (credId.trim() && credPw.trim()) {
-      payload.credentials = { id: credId.trim(), pw: credPw.trim() };
-    }
 
     try {
       const res = await fetch("/api/jobs", {
@@ -84,14 +82,12 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
         <div className="flex flex-wrap items-end gap-2">
           <label className="min-w-[5.5rem] flex-1 sm:flex-none">
             <span className="label">carrier</span>
-            <select
+            <input
               className="field mt-1 font-mono"
-              value={carrier}
-              onChange={(e) => setCarrier(e.target.value as "srt" | "korail")}
-            >
-              <option value="srt">srt</option>
-              <option value="korail">korail</option>
-            </select>
+              value={railSession.carrier === "korail" ? "korail" : "srt"}
+              disabled
+              readOnly
+            />
           </label>
           <label className="min-w-[6rem] flex-[1.2]">
             <span className="label">dep</span>
@@ -99,7 +95,7 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
               className="field mt-1"
               value={dep}
               onChange={(e) => setDep(e.target.value)}
-              placeholder="동대구"
+              placeholder={railSession.carrier === "srt" ? "동대구" : "대전"}
               required
             />
           </label>
@@ -109,7 +105,7 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
               className="field mt-1"
               value={arr}
               onChange={(e) => setArr(e.target.value)}
-              placeholder="수서"
+              placeholder={railSession.carrier === "srt" ? "수서" : "서울"}
               required
             />
           </label>
@@ -191,67 +187,38 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
             </p>
           ) : (
             <p className="font-mono text-[10px] text-[var(--muted)]">
-              exact-time watch · dry_run default on
+              {railSession.carrier} · {railSession.id_masked} · session creds
             </p>
           )}
         </div>
 
-        {advanced || !allowEnvCreds ? (
+        {advanced ? (
           <div className="mt-3 grid gap-2 border-t border-[var(--line)] pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            {advanced ? (
-              <>
-                <label className="block">
-                  <span className="label">interval_sec</span>
-                  <input
-                    className="field mt-1"
-                    type="number"
-                    min={1}
-                    max={60}
-                    step={0.5}
-                    value={intervalSec}
-                    onChange={(e) => setIntervalSec(Number(e.target.value))}
-                    required
-                  />
-                </label>
-                <label className="block">
-                  <span className="label">car · srt optional</span>
-                  <input
-                    className="field mt-1"
-                    value={car}
-                    onChange={(e) => setCar(e.target.value)}
-                    placeholder="empty = any"
-                    inputMode="numeric"
-                  />
-                </label>
-              </>
+            <label className="block">
+              <span className="label">interval_sec</span>
+              <input
+                className="field mt-1"
+                type="number"
+                min={1}
+                max={60}
+                step={0.5}
+                value={intervalSec}
+                onChange={(e) => setIntervalSec(Number(e.target.value))}
+                required
+              />
+            </label>
+            {railSession.carrier === "srt" ? (
+              <label className="block">
+                <span className="label">car · srt optional</span>
+                <input
+                  className="field mt-1"
+                  value={car}
+                  onChange={(e) => setCar(e.target.value)}
+                  placeholder="empty = any"
+                  inputMode="numeric"
+                />
+              </label>
             ) : null}
-            <label className="block">
-              <span className="label">
-                credentials id{allowEnvCreds ? " · optional" : ""}
-              </span>
-              <input
-                className="field mt-1"
-                value={credId}
-                onChange={(e) => setCredId(e.target.value)}
-                autoComplete="username"
-                placeholder={allowEnvCreds ? "env fallback ok" : "required"}
-                required={!allowEnvCreds}
-              />
-            </label>
-            <label className="block">
-              <span className="label">
-                credentials password{allowEnvCreds ? " · optional" : ""}
-              </span>
-              <input
-                className="field mt-1"
-                type="password"
-                value={credPw}
-                onChange={(e) => setCredPw(e.target.value)}
-                autoComplete="current-password"
-                placeholder={allowEnvCreds ? "env fallback ok" : "required"}
-                required={!allowEnvCreds}
-              />
-            </label>
           </div>
         ) : null}
       </form>

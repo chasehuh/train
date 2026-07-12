@@ -11,12 +11,25 @@ worker/  # Python queue consumer (Railway)
 web/     # Next.js App Router UI (local / Vercel-ready)
 ```
 
+## Auth model (two layers)
+
+Site access and rail accounts are **different**:
+
+1. **Site gate** — shared passcode (`GATE_PASSCODE`, default `chasehuh`) sets
+   httpOnly `train_gate`. This only unlocks the closed console UI.
+2. **Rail login** — each user selects SRT or Korail (KTX), enters membership /
+   phone / email + password. The API asks the worker to verify against the real
+   carrier login. On success, Next sets httpOnly encrypted `train_rail` (12h TTL)
+   with `{ carrier, id, pw, verifiedAt }`.
+
+Jobs inherit the rail session: the web proxy injects `credentials` and forces
+`carrier` from the session. Workers require `credentials_enc` on queue jobs by
+default (`ALLOW_ENV_CREDS=true` or `WORKER_MODE=smoke` only for env fallbacks).
+
 ## Web console (`web/`)
 
-Closed passcode gate (`GATE_PASSCODE`, default `chasehuh`, case-sensitive) unlocks
-an httpOnly cookie validated on every `/api/jobs*` route handler. Browser never
-sees `RAILWAY_API_KEY`; Next.js proxies to the Railway API with a server-side
-Bearer token.
+Browser never sees `RAILWAY_API_KEY`; Next.js proxies to the Railway API with a
+server-side Bearer token. `/api/jobs*` and `/api/rail/*` require the site gate.
 
 ### Local setup
 
@@ -24,7 +37,7 @@ Bearer token.
 cd web
 cp .env.example .env.local
 # Fill RAILWAY_API_KEY from .env.railway-local (API_KEY)
-# Optional: ALLOW_ENV_CREDS=true to omit credentials and use worker env fallbacks
+# APP_SECRET / GATE_SECRET encrypt the rail session cookie
 
 pnpm install
 pnpm dev
@@ -38,14 +51,16 @@ pnpm dev
 | `RAILWAY_API_URL` | Railway API base URL |
 | `RAILWAY_API_KEY` | Bearer token for `/v1/*` (server-only) |
 | `GATE_PASSCODE` | Landing unlock code (case-sensitive) |
-| `GATE_SECRET` | HMAC secret for unlock cookie |
-| `ALLOW_ENV_CREDS` | If `true`, blank UI credentials fall back to worker env |
+| `GATE_SECRET` | HMAC secret for site unlock cookie |
+| `APP_SECRET` | Prefer for rail session cookie encryption (falls back to `GATE_SECRET`) |
+| `ALLOW_ENV_CREDS` | Dev/smoke only: allow jobs without a rail session (default off) |
 
 ### Flow
 
-1. Enter passcode → unlock cookie
-2. Submit watch/reserve job → `POST /api/jobs` → Railway `POST /v1/jobs`
-3. Job list polls every 3s; cancel queued/running jobs from the UI
+1. Enter site passcode → `train_gate` cookie
+2. Enter SRT/Korail credentials → verify via API/worker → `train_rail` cookie
+3. Create watch/reserve job (no password fields) → session credentials attached
+4. Job list polls every 3s; **Rail logout** clears rail session; **Lock site** clears gate only
 
 Vercel: `web/vercel.json` is a minimal Next.js hint. Deploy the `web/`
 directory and set the env vars above in the Vercel project.
@@ -71,10 +86,12 @@ Configured in `railway.toml` / `Dockerfile` (`CMD`).
 
 | Variable | Purpose |
 |---|---|
-| `SRT_ID` | SRT login id (membership / email / phone) |
-| `SRT_PW` | SRT password |
+| `SRT_ID` / `SRT_PW` | Smoke / `ALLOW_ENV_CREDS` only — not used for normal queue jobs |
+| `KORAIL_ID` / `KORAIL_PW` | Same as above for Korail smoke |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional but recommended) |
 | `TELEGRAM_CHAT_ID` | Telegram chat id |
+| `PORT` | Health + `POST /rail/login` verify server |
+| `ALLOW_ENV_CREDS` | If `true`, queue runners may fall back to env credentials |
 
 ### Smoke job env vars
 
@@ -131,6 +148,18 @@ queue and workers drain them safely.
 ### Closed access
 All `/v1/*` routes require `Authorization: Bearer $API_KEY`.
 
+### Rail login verify
+```bash
+curl -sS -X POST "$API_URL/v1/rail/login" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"carrier":"srt","id":"YOUR_ID","pw":"YOUR_PW"}'
+```
+
+API forwards to the worker health server (`WORKER_VERIFY_URL`, e.g.
+`http://${{worker.RAILWAY_PRIVATE_DOMAIN}}:$PORT`) at `POST /rail/login`.
+Korail membership ids like `075-232-8289` are normalized to digits-only before login.
+
 ### Create a job
 ```bash
 curl -sS -X POST "$API_URL/v1/jobs" \
@@ -150,8 +179,17 @@ curl -sS -X POST "$API_URL/v1/jobs" \
   }'
 ```
 
-`carrier` may be `srt` or `korail`. If `credentials` is omitted, the worker
-falls back to `SRT_*` / `KORAIL_*` env vars.
+`carrier` may be `srt` or `korail`. `credentials` is **required** unless
+`ALLOW_ENV_CREDS=true` on the API (dev/smoke). The web console always injects
+credentials from the verified rail session.
+
+### API env extras
+
+| Variable | Purpose |
+|---|---|
+| `WORKER_VERIFY_URL` | Base URL of worker verify HTTP (no trailing path) |
+| `WORKER_VERIFY_TIMEOUT_MS` | Verify timeout (default 15000) |
+| `ALLOW_ENV_CREDS` | Allow job create without `credentials` (default false) |
 
 ### Worker concurrency (not multi-replica)
 

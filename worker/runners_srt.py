@@ -17,15 +17,24 @@ StopFn = Callable[[], bool]
 
 def resolve_srt_credentials(job: dict[str, Any]) -> tuple[str, str]:
     from .crypto_util import decrypt_credentials
+    from .rail_verify import allow_env_creds, normalize_rail_id
 
     if job.get("credentials_enc"):
         data = decrypt_credentials(job["credentials_enc"])
-        return str(data["id"]), str(data["pw"])
+        user = normalize_rail_id("srt", str(data["id"]))
+        return user, str(data["pw"])
+
+    if not allow_env_creds():
+        raise RuntimeError(
+            "SRT credentials missing: job requires credentials_enc "
+            "(set ALLOW_ENV_CREDS=true only for smoke/dev env fallback)"
+        )
+
     user = os.environ.get("SRT_ID")
     pw = os.environ.get("SRT_PW")
     if not user or not pw:
         raise RuntimeError("SRT credentials missing (job credentials_enc or SRT_ID/SRT_PW)")
-    return user, pw
+    return normalize_rail_id("srt", user), pw
 
 
 def run_srt_job(

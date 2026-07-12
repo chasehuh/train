@@ -5,11 +5,15 @@ import { ActivityStrip } from "@/components/activity-strip";
 import { GateForm } from "@/components/gate-form";
 import { JobForm } from "@/components/job-form";
 import { JobList } from "@/components/job-list";
+import {
+  RailLoginForm,
+  type RailSessionSummary,
+} from "@/components/rail-login-form";
 import type { PublicJob } from "@/lib/railway";
 
 type AppShellProps = {
   initiallyUnlocked: boolean;
-  allowEnvCreds: boolean;
+  initialRailSession: RailSessionSummary | null;
 };
 
 type Toast = {
@@ -41,8 +45,14 @@ function statusBanner(job: PublicJob, prev: PublicJob["status"] | undefined) {
   return null;
 }
 
-export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
+export function AppShell({
+  initiallyUnlocked,
+  initialRailSession,
+}: AppShellProps) {
   const [unlocked, setUnlocked] = useState(initiallyUnlocked);
+  const [railSession, setRailSession] = useState<RailSessionSummary | null>(
+    initialRailSession,
+  );
   const [jobs, setJobs] = useState<PublicJob[]>([]);
   const [quietSync, setQuietSync] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
@@ -82,7 +92,7 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
 
   const refreshJobs = useCallback(
     async (opts?: { quiet?: boolean; announce?: boolean }) => {
-      if (!unlocked) return;
+      if (!unlocked || !railSession) return;
       const quiet = opts?.quiet ?? false;
       if (quiet) setQuietSync(true);
       try {
@@ -100,11 +110,11 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
         if (quiet) setQuietSync(false);
       }
     },
-    [unlocked, mergeJobs, pushToast],
+    [unlocked, railSession, mergeJobs, pushToast],
   );
 
   useEffect(() => {
-    if (!unlocked) return;
+    if (!unlocked || !railSession) return;
     const boot = window.setTimeout(() => {
       void refreshJobs({ quiet: true, announce: false });
     }, 0);
@@ -115,11 +125,19 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
       window.clearTimeout(boot);
       window.clearInterval(id);
     };
-  }, [unlocked, refreshJobs]);
+  }, [unlocked, railSession, refreshJobs]);
 
   async function lock() {
     await fetch("/api/gate", { method: "DELETE" });
     setUnlocked(false);
+    setJobs([]);
+    prevStatusRef.current = new Map();
+    setLastSyncedAt(null);
+  }
+
+  async function logoutRail() {
+    await fetch("/api/rail/login", { method: "DELETE" });
+    setRailSession(null);
     setJobs([]);
     prevStatusRef.current = new Map();
     setLastSyncedAt(null);
@@ -153,6 +171,16 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
     return <GateForm onUnlocked={() => setUnlocked(true)} />;
   }
 
+  if (!railSession) {
+    return (
+      <RailLoginForm
+        onAuthenticated={(session) => {
+          setRailSession(session);
+        }}
+      />
+    );
+  }
+
   const liveCount = jobs.filter(
     (j) => j.status === "queued" || j.status === "running",
   ).length;
@@ -166,7 +194,7 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
               train.chasehuh
             </p>
             <p className="truncate font-mono text-[10px] tracking-wide text-[var(--muted)]">
-              closed · exact-time watch · dry_run default
+              {railSession.carrier} · {railSession.id_masked} · dry_run default
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -183,6 +211,13 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
                   ? "syncing"
                   : "connected"}
             </span>
+            <button
+              type="button"
+              onClick={() => void logoutRail()}
+              className="rounded-full border border-[var(--line)] bg-[var(--system-bg)] px-2.5 py-1 font-mono text-[10px] text-[var(--muted)] transition hover:border-[rgba(232,165,75,0.35)] hover:text-[var(--text)]"
+            >
+              Rail out
+            </button>
             <button
               type="button"
               onClick={() => void lock()}
@@ -232,7 +267,7 @@ export function AppShell({ initiallyUnlocked, allowEnvCreds }: AppShellProps) {
         />
       </div>
 
-      <JobForm allowEnvCreds={allowEnvCreds} onCreated={onCreated} />
+      <JobForm railSession={railSession} onCreated={onCreated} />
     </div>
   );
 }
