@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+:root {
+  --bg0: #0a0c10;
+  --bg1: #11141b;
+  --bg2: #181d27;
+  --line: rgba(180, 160, 130, 0.14);
+  --text: #ece8e1;
+  --muted: #8b919c;
+  --accent: #e8a54b;
+  --accent-2: #5b9fd4;
+  --warn: #d4a843;
+  --danger: #e06b6b;
+  --ok: #6bc98a;
+}
+
+@theme inline {
+  --color-background: var(--bg0);
+  --color-foreground: var(--text);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232, 165, 75, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(91, 159, 212, 0.06), transparent),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255, 255, 255, 0.012) 2px,
+      rgba(255, 255, 255, 0.012) 3px
+    ),
+    linear-gradient(175deg, #0d1016 0%, var(--bg0) 50%, #080a0e 100%);
+  font-family: var(--font-sans), ui-sans-serif, sans-serif;
+}
+
+::selection {
+  background: rgba(232, 165, 75, 0.28);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 0.35s ease-out both;
+}
+
+.label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.field {
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(17, 20, 27, 0.72);
+  color: var(--text);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field:focus {
+  border-color: rgba(232, 165, 75, 0.55);
+  box-shadow: 0 0 0 1px rgba(232, 165, 75, 0.2);
+}
+
+.field::placeholder {
+  color: rgba(139, 145, 156, 0.7);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.15rem;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #14110c;
+  font-weight: 500;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #f0b45d;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: rgba(232, 165, 75, 0.4);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: rgba(224, 107, 107, 0.35);
+  color: var(--danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: rgba(224, 107, 107, 0.08);
+}
+
+.status-queued {
+  color: var(--muted);
+}
+.status-running {
+  color: var(--accent-2);
+}
+.status-succeeded {
+  color: var(--ok);
+}
+.status-failed {
+  color: var(--danger);
+}
+.status-canceled {
+  color: var(--warn);
+}
