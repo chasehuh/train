@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Sora } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   description: "Closed SRT/Korail reservation console",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a0c10",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${sora.variable} ${mono.variable} h-full`}>
-      <body className="min-h-full font-[family-name:var(--font-sans)] antialiased">
+      <body className="min-h-full overflow-x-hidden font-[family-name:var(--font-sans)] antialiased">
         {children}
       </body>
     </html>

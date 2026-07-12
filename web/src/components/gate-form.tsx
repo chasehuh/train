@@ -35,9 +35,9 @@ export function GateForm({ onUnlocked }: GateFormProps) {
   }
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col">
-      <header className="shrink-0 border-b border-[var(--line)] bg-[rgba(10,12,16,0.72)] px-4 py-3 backdrop-blur-md md:px-6">
-        <div className="mx-auto flex w-full max-w-[90rem] items-center justify-between gap-3">
+    <div className="flex h-dvh min-h-0 flex-col overflow-x-hidden">
+      <header className="safe-top shrink-0 border-b border-[var(--line)] bg-[rgba(10,12,16,0.72)] backdrop-blur-md">
+        <div className="safe-x mx-auto flex w-full max-w-[90rem] items-center justify-between gap-3 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight text-[var(--text)]">
               train.chasehuh
@@ -46,19 +46,19 @@ export function GateForm({ onUnlocked }: GateFormProps) {
               SRT / Korail · closed console
             </p>
           </div>
-          <span className="chip text-[var(--accent)]">closed</span>
+          <span className="chip shrink-0 text-[var(--accent)]">closed</span>
         </div>
       </header>
 
-      <div className="rise flex flex-1 flex-col items-center justify-center px-4">
+      <div className="safe-x safe-bottom rise flex flex-1 flex-col items-center justify-center py-6">
         <form
           onSubmit={onSubmit}
-          className="w-full max-w-md border border-[var(--line)] bg-[rgba(17,20,27,0.72)] px-5 py-6 backdrop-blur-md"
+          className="w-full max-w-md border border-[var(--line)] bg-[rgba(17,20,27,0.72)] px-4 py-5 backdrop-blur-md sm:px-5 sm:py-6"
         >
           <p className="font-mono text-[11px] tracking-[0.2em] text-[var(--accent)] uppercase">
             Closed access
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text)]">
+          <h1 className="mt-2 text-xl font-semibold tracking-tight text-[var(--text)] sm:text-2xl">
             Enter passcode
           </h1>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
@@ -66,9 +66,7 @@ export function GateForm({ onUnlocked }: GateFormProps) {
             inside.
           </p>
           <label className="mt-5 block">
-            <span className="font-mono text-[10px] tracking-wide text-[var(--muted)] uppercase">
-              Passcode
-            </span>
+            <span className="label">Passcode</span>
             <input
               autoFocus
               type="password"
@@ -77,7 +75,7 @@ export function GateForm({ onUnlocked }: GateFormProps) {
               onChange={(e) => setPasscode(e.target.value)}
               placeholder="••••••••"
               required
-              className="mt-1.5 w-full border border-[var(--line)] bg-[rgba(10,12,16,0.85)] px-3 py-2.5 font-mono text-sm text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[rgba(232,165,75,0.45)]"
+              className="field mt-1.5 font-mono"
             />
           </label>
           {error ? (
@@ -92,7 +90,7 @@ export function GateForm({ onUnlocked }: GateFormProps) {
           <button
             type="submit"
             disabled={busy}
-            className="mt-5 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[#14110c] transition hover:brightness-105 disabled:opacity-45"
+            className="btn btn-primary mt-5 w-full sm:w-auto"
           >
             {busy ? "Checking…" : "Enter"}
           </button>
