@@ -8,7 +8,10 @@ from typing import Any, Callable
 
 from korail_backend.korail2 import Korail, ReserveOption
 
+from worker.exceptions import JobCanceled
+
 NotifyFn = Callable[[str], None]
+StopFn = Callable[[], bool]
 
 
 def resolve_korail_credentials(job: dict[str, Any]) -> tuple[str, str]:
@@ -35,8 +38,13 @@ def resolve_korail_credentials(job: dict[str, Any]) -> tuple[str, str]:
     return user, pw
 
 
-def run_korail_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[str, Any]:
+def run_korail_job(
+    job: dict[str, Any],
+    notify: NotifyFn | None = None,
+    should_stop: StopFn | None = None,
+) -> dict[str, Any]:
     notify = notify or (lambda _msg: None)
+    should_stop = should_stop or (lambda: False)
 
     user, pw = resolve_korail_credentials(job)
     dep = job["dep"]
@@ -56,6 +64,8 @@ def run_korail_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[
     success: list[str] = []
     attempt = 0
     while len(success) < target:
+        if should_stop():
+            raise JobCanceled(f"job {job['id']} canceled")
         attempt += 1
         if dry_run and max_attempts is not None and attempt > int(max_attempts):
             return {

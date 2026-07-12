@@ -19,6 +19,7 @@ cli = ["typer>=0.12.0", "rich>=13.0.0", "pydantic>=2.9"]
 srt = ["requests>=2.32.0"]
 # korail backend deps (requires AES CBC impl)
 korail = ["requests>=2.32.0", "pycryptodome"]
+test = ["pytest>=8.0"]
 
 [project.optional-dependencies]
 cli = ["typer>=0.12.0", "rich>=13.0.0", "pydantic>=2.9"]
