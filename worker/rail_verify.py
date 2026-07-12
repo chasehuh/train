@@ -129,11 +129,15 @@ def verify_rail_login(carrier: Carrier, raw_id: str, password: str) -> VerifyRes
             message=f"unsupported carrier: {carrier}",
         )
     except Exception as exc:
+        detail = str(exc).strip() or type(exc).__name__
+        # Never echo the password if an upstream error string included it.
+        if pw and pw in detail:
+            detail = type(exc).__name__
         return VerifyResult(
             ok=False,
             carrier=carrier,
             id_normalized=user,
             id_masked=mask_rail_id(user),
             error="login_failed",
-            message=f"{carrier} login failed: {type(exc).__name__}",
+            message=f"{carrier} login failed: {detail}",
         )
