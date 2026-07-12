@@ -33,4 +33,7 @@ logs/
 # Node
 api/node_modules/
 api/dist/
+web/node_modules/
+web/.next/
+web/.env.local
 node_modules/

@@ -1,6 +1,57 @@
 # train
 
-Unified SRT/Korail tooling, plus a Railway worker for SRT cloud-IP smoke tests.
+Unified SRT/Korail tooling with a Railway job queue (API + worker) and a
+closed Next.js web console (`web/`).
+
+## Monorepo layout
+
+```
+api/      # Hono TypeScript job API (Railway)
+worker/  # Python queue consumer (Railway)
+web/     # Next.js App Router UI (local / Vercel-ready)
+```
+
+## Web console (`web/`)
+
+Closed passcode gate (`GATE_PASSCODE`, default `chasehuh`, case-sensitive) unlocks
+an httpOnly cookie validated on every `/api/jobs*` route handler. Browser never
+sees `RAILWAY_API_KEY`; Next.js proxies to the Railway API with a server-side
+Bearer token.
+
+### Local setup
+
+```bash
+cd web
+cp .env.example .env.local
+# Fill RAILWAY_API_KEY from .env.railway-local (API_KEY)
+# Optional: ALLOW_ENV_CREDS=true to omit credentials and use worker env fallbacks
+
+pnpm install
+pnpm dev
+# open http://localhost:3000
+```
+
+### Env vars
+
+| Variable | Purpose |
+|---|---|
+| `RAILWAY_API_URL` | Railway API base URL |
+| `RAILWAY_API_KEY` | Bearer token for `/v1/*` (server-only) |
+| `GATE_PASSCODE` | Landing unlock code (case-sensitive) |
+| `GATE_SECRET` | HMAC secret for unlock cookie |
+| `ALLOW_ENV_CREDS` | If `true`, blank UI credentials fall back to worker env |
+
+### Flow
+
+1. Enter passcode → unlock cookie
+2. Submit watch/reserve job → `POST /api/jobs` → Railway `POST /v1/jobs`
+3. Job list polls every 3s; cancel queued/running jobs from the UI
+
+Vercel: `web/vercel.json` is a minimal Next.js hint. Deploy the `web/`
+directory and set the env vars above in the Vercel project.
+
+<!-- TODO: Google OAuth for multi-user identity (out of scope). -->
+
 
 ## Railway SRT smoke worker
 
