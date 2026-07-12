@@ -25,7 +25,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${sora.variable} ${mono.variable} h-full`}>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full font-[family-name:var(--font-sans)] antialiased">
+        {children}
+      </body>
     </html>
   );
 }

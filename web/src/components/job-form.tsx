@@ -23,8 +23,10 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
   const [maxAttempts, setMaxAttempts] = useState(5);
   const [credId, setCredId] = useState("");
   const [credPw, setCredPw] = useState("");
+  const [advanced, setAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pulse, setPulse] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -66,6 +68,8 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
         setError(data.message || data.error || `create failed (${res.status})`);
         return;
       }
+      setPulse(true);
+      window.setTimeout(() => setPulse(false), 550);
       onCreated(data.job as PublicJob);
     } catch {
       setError("network error");
@@ -75,169 +79,182 @@ export function JobForm({ onCreated, allowEnvCreds }: JobFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="rise space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="label">carrier</span>
-          <select
-            className="field"
-            value={carrier}
-            onChange={(e) => setCarrier(e.target.value as "srt" | "korail")}
-          >
-            <option value="srt">srt</option>
-            <option value="korail">korail</option>
-          </select>
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">interval_sec</span>
-          <input
-            className="field"
-            type="number"
-            min={1}
-            max={60}
-            step={0.5}
-            value={intervalSec}
-            onChange={(e) => setIntervalSec(Number(e.target.value))}
-            required
-          />
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">dep</span>
-          <input
-            className="field"
-            value={dep}
-            onChange={(e) => setDep(e.target.value)}
-            placeholder="동대구"
-            required
-          />
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">arr</span>
-          <input
-            className="field"
-            value={arr}
-            onChange={(e) => setArr(e.target.value)}
-            placeholder="수서"
-            required
-          />
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">date · YYYYMMDD</span>
-          <input
-            className="field font-[family-name:var(--font-mono)]"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            pattern="\d{8}"
-            placeholder={defaultDate}
-            required
-          />
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">time · HHMMSS</span>
-          <input
-            className="field font-[family-name:var(--font-mono)]"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            pattern="\d{6}"
-            placeholder="220800"
-            required
-          />
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">target seats</span>
-          <input
-            className="field"
-            type="number"
-            min={1}
-            max={8}
-            value={target}
-            onChange={(e) => setTarget(Number(e.target.value))}
-            required
-          />
-        </label>
-
-        <label className="block space-y-2">
-          <span className="label">car · srt optional</span>
-          <input
-            className="field"
-            value={car}
-            onChange={(e) => setCar(e.target.value)}
-            placeholder="empty = any"
-            inputMode="numeric"
-          />
-        </label>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-6">
-        <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-          <input
-            type="checkbox"
-            checked={dryRun}
-            onChange={(e) => setDryRun(e.target.checked)}
-            className="accent-[var(--accent)]"
-          />
-          dry_run (safe default)
-        </label>
-
-        {dryRun ? (
-          <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-            <span className="label !normal-case">max_attempts</span>
+    <div className="border-t border-[var(--line)] bg-[rgba(10,12,16,0.88)] px-4 py-3 backdrop-blur-md md:px-6">
+      <form onSubmit={onSubmit} className="mx-auto w-full max-w-[90rem]">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-[5.5rem] flex-1 sm:flex-none">
+            <span className="label">carrier</span>
+            <select
+              className="field mt-1 font-mono"
+              value={carrier}
+              onChange={(e) => setCarrier(e.target.value as "srt" | "korail")}
+            >
+              <option value="srt">srt</option>
+              <option value="korail">korail</option>
+            </select>
+          </label>
+          <label className="min-w-[6rem] flex-[1.2]">
+            <span className="label">dep</span>
             <input
-              className="field w-20 py-1"
-              type="number"
-              min={1}
-              value={maxAttempts}
-              onChange={(e) => setMaxAttempts(Number(e.target.value))}
+              className="field mt-1"
+              value={dep}
+              onChange={(e) => setDep(e.target.value)}
+              placeholder="동대구"
+              required
             />
           </label>
+          <label className="min-w-[6rem] flex-[1.2]">
+            <span className="label">arr</span>
+            <input
+              className="field mt-1"
+              value={arr}
+              onChange={(e) => setArr(e.target.value)}
+              placeholder="수서"
+              required
+            />
+          </label>
+          <label className="min-w-[7rem] flex-1 sm:flex-none">
+            <span className="label">date</span>
+            <input
+              className="field mt-1 font-mono"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              pattern="\d{8}"
+              placeholder={defaultDate}
+              required
+            />
+          </label>
+          <label className="min-w-[6.5rem] flex-1 sm:flex-none">
+            <span className="label">time</span>
+            <input
+              className="field mt-1 font-mono"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              pattern="\d{6}"
+              placeholder="220800"
+              required
+            />
+          </label>
+          <label className="w-[4.5rem]">
+            <span className="label">seats</span>
+            <input
+              className="field mt-1"
+              type="number"
+              min={1}
+              max={8}
+              value={target}
+              onChange={(e) => setTarget(Number(e.target.value))}
+              required
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy}
+            className={`shrink-0 rounded-2xl bg-[linear-gradient(145deg,var(--accent),#c8842f)] px-4 py-2.5 text-sm font-semibold text-[#1a1208] transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${pulse ? "send-pulse" : ""}`}
+          >
+            {busy ? "Queueing…" : "Watch"}
+          </button>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label className="flex items-center gap-2 font-mono text-[11px] text-[var(--muted)]">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            dry_run
+          </label>
+          {dryRun ? (
+            <label className="flex items-center gap-2 font-mono text-[11px] text-[var(--muted)]">
+              max
+              <input
+                className="field w-14 py-1"
+                type="number"
+                min={1}
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(Number(e.target.value))}
+              />
+            </label>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setAdvanced((v) => !v)}
+            className="font-mono text-[10px] tracking-wide text-[var(--muted)] uppercase transition hover:text-[var(--text)]"
+          >
+            {advanced ? "hide options" : "more options"}
+          </button>
+          {error ? (
+            <p className="font-mono text-[11px] text-[var(--danger)]" role="alert">
+              {error}
+            </p>
+          ) : (
+            <p className="font-mono text-[10px] text-[var(--muted)]">
+              exact-time watch · dry_run default on
+            </p>
+          )}
+        </div>
+
+        {advanced || !allowEnvCreds ? (
+          <div className="mt-3 grid gap-2 border-t border-[var(--line)] pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            {advanced ? (
+              <>
+                <label className="block">
+                  <span className="label">interval_sec</span>
+                  <input
+                    className="field mt-1"
+                    type="number"
+                    min={1}
+                    max={60}
+                    step={0.5}
+                    value={intervalSec}
+                    onChange={(e) => setIntervalSec(Number(e.target.value))}
+                    required
+                  />
+                </label>
+                <label className="block">
+                  <span className="label">car · srt optional</span>
+                  <input
+                    className="field mt-1"
+                    value={car}
+                    onChange={(e) => setCar(e.target.value)}
+                    placeholder="empty = any"
+                    inputMode="numeric"
+                  />
+                </label>
+              </>
+            ) : null}
+            <label className="block">
+              <span className="label">
+                credentials id{allowEnvCreds ? " · optional" : ""}
+              </span>
+              <input
+                className="field mt-1"
+                value={credId}
+                onChange={(e) => setCredId(e.target.value)}
+                autoComplete="username"
+                placeholder={allowEnvCreds ? "env fallback ok" : "required"}
+                required={!allowEnvCreds}
+              />
+            </label>
+            <label className="block">
+              <span className="label">
+                credentials password{allowEnvCreds ? " · optional" : ""}
+              </span>
+              <input
+                className="field mt-1"
+                type="password"
+                value={credPw}
+                onChange={(e) => setCredPw(e.target.value)}
+                autoComplete="current-password"
+                placeholder={allowEnvCreds ? "env fallback ok" : "required"}
+                required={!allowEnvCreds}
+              />
+            </label>
+          </div>
         ) : null}
-      </div>
-
-      <div className="grid gap-4 border-t border-[var(--line)] pt-5 sm:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="label">
-            credentials id{allowEnvCreds ? " · optional" : ""}
-          </span>
-          <input
-            className="field"
-            value={credId}
-            onChange={(e) => setCredId(e.target.value)}
-            autoComplete="username"
-            placeholder={allowEnvCreds ? "server env fallback ok" : "required"}
-            required={!allowEnvCreds}
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="label">
-            credentials password{allowEnvCreds ? " · optional" : ""}
-          </span>
-          <input
-            className="field"
-            type="password"
-            value={credPw}
-            onChange={(e) => setCredPw(e.target.value)}
-            autoComplete="current-password"
-            placeholder={allowEnvCreds ? "server env fallback ok" : "required"}
-            required={!allowEnvCreds}
-          />
-        </label>
-      </div>
-
-      {error ? (
-        <p className="text-sm text-[var(--danger)]" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <button className="btn btn-primary" type="submit" disabled={busy}>
-        {busy ? "Submitting…" : "Create job"}
-      </button>
-    </form>
+      </form>
+    </div>
   );
 }
