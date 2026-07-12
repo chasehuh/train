@@ -61,6 +61,7 @@ def get_egress_ip() -> str:
 
 
 def maybe_start_health_server() -> None:
+    """Bind $PORT for health checks and rail login verification (option A)."""
     port_raw = _env("PORT")
     if not port_raw:
         return
@@ -69,22 +70,96 @@ def maybe_start_health_server() -> None:
     except ValueError:
         return
 
+    import json
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
+        def _json(self, status: int, payload: dict) -> None:
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b"ok\n")
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:  # noqa: N802
+            path = self.path.split("?", 1)[0]
+            if path in ("/", "/health", "/healthz"):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"ok\n")
+                return
+            self._json(404, {"ok": False, "error": "not_found"})
+
+        def do_POST(self) -> None:  # noqa: N802
+            path = self.path.split("?", 1)[0].rstrip("/") or "/"
+            if path != "/rail/login":
+                self._json(404, {"ok": False, "error": "not_found"})
+                return
+
+            try:
+                length = int(self.headers.get("Content-Length") or "0")
+            except ValueError:
+                length = 0
+            raw = self.rfile.read(max(0, length)) if length else b"{}"
+            try:
+                data = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                self._json(400, {"ok": False, "error": "invalid_json"})
+                return
+
+            carrier = str(data.get("carrier") or "").strip().lower()
+            user_id = str(data.get("id") or "")
+            password = str(data.get("pw") or "")
+            if carrier not in ("srt", "korail"):
+                self._json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "validation_failed",
+                        "message": "carrier must be srt or korail",
+                    },
+                )
+                return
+
+            from worker.rail_verify import verify_rail_login
+
+            result = verify_rail_login(carrier, user_id, password)  # type: ignore[arg-type]
+            if not result.ok:
+                self._json(
+                    401,
+                    {
+                        "ok": False,
+                        "error": result.error or "login_failed",
+                        "message": result.message or "login failed",
+                        "carrier": result.carrier,
+                        "id_masked": result.id_masked,
+                    },
+                )
+                return
+
+            from datetime import timezone
+
+            verified_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "carrier": result.carrier,
+                    "id_normalized": result.id_normalized,
+                    "id_masked": result.id_masked,
+                    "verified_at": verified_at,
+                },
+            )
 
         def log_message(self, format: str, *args) -> None:  # noqa: A003
             return
 
     server = HTTPServer(("0.0.0.0", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    print(f"[{datetime.now():%H:%M:%S}] health listening on :{port}")
+    print(f"[{datetime.now():%H:%M:%S}] health+verify listening on :{port}")
 
 
 def make_cancel_check(job_id: UUID) -> Callable[[], bool]:
