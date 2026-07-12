@@ -22,8 +22,6 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from worker.db import bump_attempts, claim_next_job, connect, ensure_schema, finish_job, get_job
-from worker.runners_korail import run_korail_job
-from worker.runners_srt import run_srt_job
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -97,8 +95,12 @@ def run_one_job(job: dict) -> None:
 
     try:
         if carrier == "srt":
+            from worker.runners_srt import run_srt_job
+
             result = run_srt_job(job, notify=_log)
         elif carrier == "korail":
+            from worker.runners_korail import run_korail_job
+
             result = run_korail_job(job, notify=_log)
         else:
             raise RuntimeError(f"unsupported carrier: {carrier}")

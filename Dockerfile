@@ -7,7 +7,8 @@ RUN pip install --no-cache-dir \
     "requests>=2.32.0" \
     "psycopg[binary]>=3.2.0" \
     "cryptography>=44.0.0" \
-    "pycryptodome>=3.21.0"
+    "pycryptodome>=3.21.0" \
+    "six>=1.16.0"
 
 COPY db/ ./db/
 COPY src/ ./src/
