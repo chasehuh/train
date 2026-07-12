@@ -16,13 +16,22 @@ def resolve_korail_credentials(job: dict[str, Any]) -> tuple[str, str]:
 
     if job.get("credentials_enc"):
         data = decrypt_credentials(job["credentials_enc"])
-        return str(data["id"]), str(data["pw"])
-    user = os.environ.get("KORAIL_ID")
-    pw = os.environ.get("KORAIL_PW")
-    if not user or not pw:
-        raise RuntimeError(
-            "Korail credentials missing (job credentials_enc or KORAIL_ID/KORAIL_PW)"
-        )
+        user, pw = str(data["id"]), str(data["pw"])
+    else:
+        user = os.environ.get("KORAIL_ID")
+        pw = os.environ.get("KORAIL_PW")
+        if not user or not pw:
+            raise RuntimeError(
+                "Korail credentials missing (job credentials_enc or KORAIL_ID/KORAIL_PW)"
+            )
+
+    # Membership IDs must not use phone-shaped hyphens (075-232-8289 is
+    # misclassified as phone). Keep real mobile numbers hyphenated.
+    digits = "".join(ch for ch in user if ch.isdigit())
+    if len(digits) == 11 and digits.startswith("01"):
+        user = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    elif digits:
+        user = digits
     return user, pw
 
 
@@ -38,11 +47,6 @@ def run_korail_job(job: dict[str, Any], notify: NotifyFn | None = None) -> dict[
     interval = float(job["interval_sec"])
     dry_run = bool(job["dry_run"])
     max_attempts = job.get("max_attempts")
-
-    # Phone-like IDs: normalize if 11 digits
-    digits = "".join(ch for ch in user if ch.isdigit())
-    if len(digits) == 11:
-        user = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
 
     korail = Korail(user, pw, auto_login=True)
     if not korail.logined:

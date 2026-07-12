@@ -1,15 +1,34 @@
 # -*- coding: utf-8 -*-
 """
-    korail2
-    ~~~~~~~
+    korail_backend
+    ~~~~~~~~~~~~~~
 
-    Korail (www.letskorail.com) wrapper for Python.
-
-    :copyright: (c) 2014 by Taehoon Kim.
-    :license: BSD, see LICENSE for more details.
+    Vendored Korail client based on chasehuh/korail2 (carpedm20 + antibot).
 """
-from .korail2 import Korail, Passenger, AdultPassenger, ChildPassenger, ToddlerPassenger, SeniorPassenger, TrainType, ReserveOption
+
+from .korail2 import (
+    Korail,
+    Passenger,
+    AdultPassenger,
+    ChildPassenger,
+    ToddlerPassenger,
+    SeniorPassenger,
+    TrainType,
+    ReserveOption,
+)
 from .korail2 import KorailError, NeedToLoginError, SoldOutError, NoResultsError
 
-__all__ = ['Korail', 'Passenger', 'AdultPassenger', 'ChildPassenger', 'ToddlerPassenger', 'SeniorPassenger', 'TrainType', 'ReserveOption',
-           'KorailError', 'NeedToLoginError', 'SoldOutError', 'NoResultsError']
+__all__ = [
+    "Korail",
+    "Passenger",
+    "AdultPassenger",
+    "ChildPassenger",
+    "ToddlerPassenger",
+    "SeniorPassenger",
+    "TrainType",
+    "ReserveOption",
+    "KorailError",
+    "NeedToLoginError",
+    "SoldOutError",
+    "NoResultsError",
+]
