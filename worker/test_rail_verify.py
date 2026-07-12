@@ -30,6 +30,17 @@ class NormalizeRailIdTests(unittest.TestCase):
             "010-1234-5678",
         )
 
+
+    def test_srt_membership_strips_hyphens(self) -> None:
+        self.assertEqual(
+            normalize_rail_id("srt", "228-165-2598"),
+            "2281652598",
+        )
+        self.assertEqual(
+            normalize_rail_id("srt", "2281652598"),
+            "2281652598",
+        )
+
     def test_srt_email_passthrough(self) -> None:
         self.assertEqual(
             normalize_rail_id("srt", "user@example.com"),
