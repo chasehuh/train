@@ -69,3 +69,40 @@ SMOKE_DRY_RUN=false python -m worker.main
 ```
 
 Never commit `.env` or real SRT passwords.
+
+
+## Queue API (multi-user)
+
+TypeScript Hono API (`api/`) enqueues jobs into Postgres. Python `worker`
+claims them with `FOR UPDATE SKIP LOCKED` so multiple jobs can sit in the
+queue and workers drain them safely.
+
+### Closed access
+All `/v1/*` routes require `Authorization: Bearer $API_KEY`.
+
+### Create a job
+```bash
+curl -sS -X POST "$API_URL/v1/jobs" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "carrier": "srt",
+    "dep": "동대구",
+    "arr": "수서",
+    "date": "20260712",
+    "time": "220800",
+    "target": 1,
+    "car": 4,
+    "dry_run": true,
+    "max_attempts": 5,
+    "credentials": {"id": "YOUR_SRT_ID", "pw": "YOUR_SRT_PW"}
+  }'
+```
+
+`carrier` may be `srt` or `korail`. If `credentials` is omitted, the worker
+falls back to `SRT_*` / `KORAIL_*` env vars.
+
+### Autoscaling
+Not enabled. Start with **1 worker replica**. Scale horizontally only when
+queue depth stays high; more replicas share one egress IP and can worsen
+rail rate-limits.
