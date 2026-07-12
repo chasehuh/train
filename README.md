@@ -54,13 +54,22 @@ pnpm dev
 | `GATE_SECRET` | HMAC secret for site unlock cookie |
 | `APP_SECRET` | Prefer for rail session cookie encryption (falls back to `GATE_SECRET`) |
 | `ALLOW_ENV_CREDS` | Dev/smoke only: allow jobs without a rail session (default off) |
+| `TRAIN_SEARCH_MOCK` | Web: `true` force mock trains; `false` live-only; unset = live with mock fallback |
 
 ### Flow
 
 1. Enter site passcode → `train_gate` cookie
 2. Enter SRT/Korail credentials → verify via API/worker → `train_rail` cookie
-3. Create watch/reserve job (no password fields) → session credentials attached
-4. Job list polls every 3s; **Rail logout** clears rail session; **Lock site** clears gate only
+3. **Browse** trains (SRT-style search bar → Korail-style results) via
+   `POST /api/trains/search` (proxies `POST /v1/trains/search`)
+4. Select a train + seat class → **Confirm** creates an exact-time watch job
+   (`POST /api/jobs`) with session credentials; `dry_run` defaults on
+5. Watches tab polls every 3s; **Rail logout** clears rail session; **Lock site**
+   clears gate only
+
+If Railway has not yet deployed the search endpoint, the web proxy falls back to
+mock timetable fixtures (set `TRAIN_SEARCH_MOCK=true` to force, or
+`TRAIN_SEARCH_MOCK=false` to disable fallback).
 
 Vercel: `web/vercel.json` is a minimal Next.js hint. Deploy the `web/`
 directory and set the env vars above in the Vercel project.
@@ -160,6 +169,24 @@ API forwards to the worker health server (`WORKER_VERIFY_URL`, e.g.
 `http://${{worker.RAILWAY_PRIVATE_DOMAIN}}:$PORT`) at `POST /rail/login`.
 Korail membership ids like `075-232-8289` are normalized to digits-only before login.
 
+### Search trains
+```bash
+curl -sS -X POST "$API_URL/v1/trains/search" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "carrier": "srt",
+    "dep": "수서",
+    "arr": "대전",
+    "date": "20260718",
+    "time": "000000",
+    "credentials": {"id": "YOUR_SRT_ID", "pw": "YOUR_SRT_PW"}
+  }'
+```
+
+API forwards to worker `POST /rail/search` (same `WORKER_VERIFY_URL`). Requires
+API + worker deploy for live results; the web console can fall back to fixtures.
+
 ### Create a job
 ```bash
 curl -sS -X POST "$API_URL/v1/jobs" \
@@ -187,8 +214,9 @@ credentials from the verified rail session.
 
 | Variable | Purpose |
 |---|---|
-| `WORKER_VERIFY_URL` | Base URL of worker verify HTTP (no trailing path) |
-| `WORKER_VERIFY_TIMEOUT_MS` | Verify timeout (default 15000) |
+| `WORKER_VERIFY_URL` | Base URL of worker verify/search HTTP (no trailing path) |
+| `WORKER_VERIFY_TIMEOUT_MS` | Login verify timeout (default 15000) |
+| `WORKER_SEARCH_TIMEOUT_MS` | Train search timeout (default 30000) |
 | `ALLOW_ENV_CREDS` | Allow job create without `credentials` (default false) |
 
 ### Worker concurrency (not multi-replica)

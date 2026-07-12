@@ -72,8 +72,8 @@ export function JobList({ jobs, highlightedId, onCancel }: JobListProps) {
           No watches yet
         </h2>
         <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">
-          Queue an exact-time SRT or Korail watch from the composer below.
-          Active jobs pulse here while the worker polls.
+          Queue an exact-time watch from Browse: search trains, pick a seat
+          class, then Confirm. Active jobs pulse here while the worker polls.
         </p>
       </div>
     );

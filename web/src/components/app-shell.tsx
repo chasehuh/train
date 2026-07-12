@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityStrip } from "@/components/activity-strip";
+import { BookingDashboard } from "@/components/booking-dashboard";
 import { GateForm } from "@/components/gate-form";
-import { JobForm } from "@/components/job-form";
-import { JobList } from "@/components/job-list";
 import {
   RailLoginForm,
   type RailSessionSummary,
@@ -161,6 +160,7 @@ export function AppShell({
   function onCreated(job: PublicJob) {
     mergeJobs([job, ...jobs.filter((j) => j.id !== job.id)]);
     setHighlightedId(job.id);
+    pushToast(`Queued ${job.id.slice(0, 8)}…`, "ok");
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
     highlightTimer.current = window.setTimeout(() => {
       setHighlightedId(null);
@@ -194,7 +194,7 @@ export function AppShell({
               train.chasehuh
             </p>
             <p className="truncate font-mono text-[10px] tracking-wide text-[var(--muted)]">
-              {railSession.carrier} · {railSession.id_masked} · dry_run default
+              {railSession.carrier} · {railSession.id_masked} · search → confirm → watch
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -259,15 +259,13 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="activity-scroll mx-auto min-h-0 w-full max-w-[90rem] flex-1 overflow-y-auto px-4 py-4 md:px-6">
-        <JobList
-          jobs={jobs}
-          highlightedId={highlightedId}
-          onCancel={(id) => void onCancel(id)}
-        />
-      </div>
-
-      <JobForm railSession={railSession} onCreated={onCreated} />
+      <BookingDashboard
+        railSession={railSession}
+        jobs={jobs}
+        highlightedId={highlightedId}
+        onCancel={(id) => void onCancel(id)}
+        onCreated={onCreated}
+      />
     </div>
   );
 }

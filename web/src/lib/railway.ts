@@ -141,3 +141,31 @@ export async function verifyRailLogin(body: RailLoginBody) {
     body: JSON.stringify(body),
   }) as Promise<RailLoginResponse>;
 }
+
+export type TrainSearchBody = {
+  carrier: "srt" | "korail";
+  dep: string;
+  arr: string;
+  date: string;
+  time?: string;
+  available_only?: boolean;
+  credentials: JobCredentials;
+};
+
+export async function searchTrains(body: TrainSearchBody) {
+  return railwayFetch("/v1/trains/search", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }) as Promise<{
+    ok: boolean;
+    carrier: "srt" | "korail";
+    dep: string;
+    arr: string;
+    date: string;
+    time: string;
+    trains: unknown[];
+    source?: string;
+    error?: string;
+    message?: string;
+  }>;
+}
