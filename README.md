@@ -21,6 +21,13 @@ Site access and rail accounts are **different**:
    phone / email + password. The API asks the worker to verify against the real
    carrier login. On success, Next sets httpOnly encrypted `train_rail` (12h TTL)
    with `{ carrier, id, pw, verifiedAt }`.
+3. **Family unlock** (optional, gate still required) — if the membership field
+   matches `FAMILY_BACKDOOR_SECRET` (server-only; set explicitly in production),
+   the web host skips the typed password and verifies the selected carrier using
+   `SRT_ID`/`SRT_PW` or `KORAIL_ID`/`KORAIL_PW` on the Next.js server, then mints
+   the same encrypted `train_rail` cookie. This is separate from
+   `ALLOW_ENV_CREDS` (queue/job env fallback). Failed unlocks are lightly
+   throttled; the secret must never ship in client JS.
 
 Jobs inherit the rail session: the web proxy injects `credentials` and forces
 `carrier` from the session. Workers require `credentials_enc` on queue jobs by
@@ -54,12 +61,16 @@ pnpm dev
 | `GATE_SECRET` | HMAC secret for site unlock cookie |
 | `APP_SECRET` | Prefer for rail session cookie encryption (falls back to `GATE_SECRET`) |
 | `ALLOW_ENV_CREDS` | Dev/smoke only: allow jobs without a rail session (default off) |
+| `FAMILY_BACKDOOR_SECRET` | Server-only family unlock string (membership field). Set in production; do not put in client code |
+| `SRT_ID` / `SRT_PW` | Web host env used by family unlock for SRT (also worker smoke) |
+| `KORAIL_ID` / `KORAIL_PW` | Web host env used by family unlock for Korail (also worker smoke) |
 | `TRAIN_SEARCH_MOCK` | Web: `true` force mock trains; `false` live-only; unset = live with mock fallback |
 
 ### Flow
 
 1. Enter site passcode → `train_gate` cookie
 2. Enter SRT/Korail credentials → verify via API/worker → `train_rail` cookie
+   (or family unlock via membership-field secret + server env rail creds)
 3. **Browse** trains (SRT-style search bar → Korail-style results) via
    `POST /api/trains/search` (proxies `POST /v1/trains/search`)
 4. Select a train + seat class → **Confirm** creates an exact-time watch job
@@ -122,8 +133,8 @@ Configured in `railway.toml` / `Dockerfile` (`CMD`).
 
 | Variable | Purpose |
 |---|---|
-| `SRT_ID` / `SRT_PW` | Smoke / `ALLOW_ENV_CREDS` only — not used for normal queue jobs |
-| `KORAIL_ID` / `KORAIL_PW` | Same as above for Korail smoke |
+| `SRT_ID` / `SRT_PW` | Smoke / `ALLOW_ENV_CREDS` on worker; also required on the **web** host for family unlock |
+| `KORAIL_ID` / `KORAIL_PW` | Same as above for Korail |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (optional but recommended) |
 | `TELEGRAM_CHAT_ID` | Telegram chat id |
 | `PORT` | Health + `POST /rail/login` verify server |
