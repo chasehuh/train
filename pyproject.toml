@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "train"
+version = "0.1.0"
+description = "Personal Korail + SRT search / watch / reserve CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "six",
+    "pycryptodome",
+    "python-dotenv",
+]
+
+[project.scripts]
+train = "train.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["train", "korail2", "SRT"]

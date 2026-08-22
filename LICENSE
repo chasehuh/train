@@ -1,0 +1,4 @@
+Vendored Korail and SRT clients keep their upstream licenses
+(BSD / project LICENSE in the original repositories).
+
+CLI code in train/ is for personal use.
