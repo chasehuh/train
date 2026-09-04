@@ -11,6 +11,21 @@ def _stamp() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
 
+def _seat_letters(seat: str | None) -> str:
+    return "".join(c for c in str(seat or "") if c.isalpha()).upper()
+
+
+def _window_hint(letter: str | None) -> bool | None:
+    if not letter:
+        return None
+    mark = letter[-1].upper()
+    if mark in ("A", "D"):
+        return True
+    if mark in ("B", "C"):
+        return False
+    return None
+
+
 def watch_srt(
     *,
     client: Any,
@@ -24,6 +39,7 @@ def watch_srt(
     monitor_only: bool,
     telegram: tuple[str | None, str | None],
     max_attempts: int | None = None,
+    seat_letter: str | None = None,
 ) -> int:
     from SRT import SeatType
     from SRT.passenger import Adult
@@ -31,13 +47,15 @@ def watch_srt(
     token, chat = telegram
     print(
         f"[{_stamp()}] watch srt {dep}->{arr} {date} {dep_time} "
-        f"trains={trains or 'any'} class={seat_class} interval={interval}"
+        f"trains={trains or 'any'} class={seat_class} "
+        f"letter={seat_letter or '-'} interval={interval}"
     )
     notify(
         token,
         chat,
         f"SRT watch started\n{dep}->{arr} {date} {dep_time}\n"
-        f"trains {','.join(trains) or 'any'} class={seat_class}",
+        f"trains {','.join(trains) or 'any'} class={seat_class}"
+        + (f" letter={seat_letter}" if seat_letter else ""),
     )
     attempt = 0
     while True:
@@ -84,7 +102,10 @@ def watch_srt(
         print(f"[{_stamp()}] #{attempt} try {picked}")
         try:
             reservation = client.reserve(
-                picked, passengers=[Adult(1)], special_seat=kind
+                picked,
+                passengers=[Adult(1)],
+                special_seat=kind,
+                window_seat=_window_hint(seat_letter),
             )
         except Exception as exc:
             print(f"[{_stamp()}] #{attempt} reserve failed: {type(exc).__name__}: {exc}")
@@ -92,6 +113,26 @@ def watch_srt(
                 return 1
             time.sleep(interval or 3)
             continue
+
+        if seat_letter:
+            wanted = seat_letter[-1].upper()
+            got = [_seat_letters(ticket.seat) for ticket in reservation.tickets]
+            if any(mark != wanted for mark in got):
+                print(
+                    f"[{_stamp()}] #{attempt} wrong letter {got}, "
+                    f"wanted {wanted}; cancelled"
+                )
+                try:
+                    client.cancel(reservation)
+                except Exception as exc:
+                    print(
+                        f"[{_stamp()}] #{attempt} cancel failed: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                if max_attempts and attempt >= max_attempts:
+                    return 1
+                time.sleep(interval or 3)
+                continue
 
         lines = "\n".join(f"  - {ticket}" for ticket in reservation.tickets)
         print(f"[{_stamp()}] RESERVED {reservation}")
@@ -114,19 +155,22 @@ def watch_korail(
     monitor_only: bool,
     telegram: tuple[str | None, str | None],
     max_attempts: int | None = None,
+    seat_letter: str | None = None,
 ) -> int:
-    from korail2 import ReserveOption
+    from korail2 import ReserveOption, SeatLetterMismatchError
 
     token, chat = telegram
     print(
         f"[{_stamp()}] watch ktx {dep}->{arr} {date} {dep_time} "
-        f"trains={trains or 'any'} class={seat_class} interval={interval}"
+        f"trains={trains or 'any'} class={seat_class} "
+        f"letter={seat_letter or '-'} interval={interval}"
     )
     notify(
         token,
         chat,
         f"Korail watch started\n{dep}->{arr} {date} {dep_time}\n"
-        f"trains {','.join(trains) or 'any'} class={seat_class}",
+        f"trains {','.join(trains) or 'any'} class={seat_class}"
+        + (f" letter={seat_letter}" if seat_letter else ""),
     )
     attempt = 0
     while True:
@@ -180,7 +224,18 @@ def watch_korail(
         }[seat_class]
         print(f"[{_stamp()}] #{attempt} try {picked}")
         try:
-            reservation = client.reserve(picked, option=option)
+            reservation = client.reserve(
+                picked, option=option, seat_letter=seat_letter
+            )
+        except SeatLetterMismatchError as exc:
+            print(
+                f"[{_stamp()}] #{attempt} wrong letter {exc.seat_no}, "
+                f"wanted {exc.wanted}; cancelled"
+            )
+            if max_attempts and attempt >= max_attempts:
+                return 1
+            time.sleep(interval or 3)
+            continue
         except Exception as exc:
             print(f"[{_stamp()}] #{attempt} reserve failed: {type(exc).__name__}: {exc}")
             if max_attempts and attempt >= max_attempts:

@@ -53,6 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="any = first of special or general",
     )
     watch.add_argument("--no-telegram", action="store_true")
+    watch.add_argument(
+        "--seat-letter",
+        help="Wanted seat letter (A/B/C/D). Korail maps first; SRT reserve+cancel",
+    )
 
     reserve = sub.add_parser("reserve", help="One-shot reserve (no poll loop)")
     trip(reserve)
@@ -61,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
         dest="seat_class",
         choices=("any", "general", "special"),
         default="any",
+    )
+    reserve.add_argument(
+        "--seat-letter",
+        help="Wanted seat letter (A/B/C/D). Korail maps first; SRT reserve+cancel",
     )
 
     res = sub.add_parser("reservations", help="List holds and tickets")
@@ -186,6 +194,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
             interval=args.interval,
             monitor_only=args.monitor_only,
             telegram=tg,
+            seat_letter=getattr(args, "seat_letter", None),
         )
     return watch_korail(
         client=_korail(),
@@ -199,6 +208,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
         interval=args.interval,
         monitor_only=args.monitor_only,
         telegram=tg,
+        seat_letter=getattr(args, "seat_letter", None),
     )
 
 
@@ -228,6 +238,7 @@ def cmd_reserve(args: argparse.Namespace) -> int:
             monitor_only=False,
             telegram=tg,
             max_attempts=1,
+            seat_letter=getattr(args, "seat_letter", None),
         )
     return watch_korail(
         client=_korail(),
@@ -242,6 +253,7 @@ def cmd_reserve(args: argparse.Namespace) -> int:
         monitor_only=False,
         telegram=tg,
         max_attempts=1,
+        seat_letter=getattr(args, "seat_letter", None),
     )
 
 

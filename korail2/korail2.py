@@ -53,7 +53,10 @@ KORAIL_MYTICKETLIST = "%s.myTicket.MyTicketList" % KORAIL_MOBILE
 KORAIL_MYTICKET_SEAT = "%s.refunds.SelTicketInfo" % KORAIL_MOBILE
 
 KORAIL_MYRESERVATIONLIST = "%s.reservation.ReservationView" % KORAIL_MOBILE
+KORAIL_RESERVATION_DETAIL = "%s.certification.ReservationList" % KORAIL_MOBILE
 KORAIL_CANCEL = "%s.reservationCancel.ReservationCancelChk" % KORAIL_MOBILE
+KORAIL_CARS_INFO = "%s.research.TrainResearch" % KORAIL_MOBILE
+KORAIL_CAR_DETAIL = "%s.research.ResidualSeatsResearch.do" % KORAIL_MOBILE
 
 KORAIL_STATION_DB = "%s.common.stationinfo?device=ip" % KORAIL_MOBILE
 KORAIL_STATION_DB_DATA = "%s.common.stationdata" % KORAIL_MOBILE
@@ -210,6 +213,11 @@ class Train(Schedule):
         self.wait_reserve_flag = _get_utf8(data, 'h_wait_rsv_flg')
         if self.wait_reserve_flag:
             self.wait_reserve_flag = int(self.wait_reserve_flag)
+
+        self.dep_stn_run_ordr = _get_utf8(data, 'h_dpt_stn_run_ordr')
+        self.arr_stn_run_ordr = _get_utf8(data, 'h_arv_stn_run_ordr')
+        self.dep_stn_cons_ordr = _get_utf8(data, 'h_dpt_stn_cons_ordr')
+        self.arr_stn_cons_ordr = _get_utf8(data, 'h_arv_stn_cons_ordr')
 
 
     def __repr__(self):
@@ -473,18 +481,32 @@ class Reservation(Train):
         self.journey_cnt = _get_utf8(data, 'txtJrnyCnt', "01")
         self.rsv_chg_no = _get_utf8(data, 'hidRsvChgNo', "00000")
 
+    def apply_seat_detail(self, data):
+        journeys = (data.get('jrny_infos') or {}).get('jrny_info') or []
+        for journey in journeys:
+            seats = ((journey.get('seat_infos') or {}).get('seat_info')) or []
+            if not seats:
+                continue
+            first = seats[0]
+            self.car_no = _get_utf8(first, 'h_srcar_no')
+            self.seat_no = _get_utf8(first, 'h_seat_no')
+            return self
+        return self
 
-        # 좌석정보 추가 업데이트 필요.
-        # self.car_no = None
-        # self.seat_no = None
-        # self.seat_no_end = None
-
-
+    @property
+    def seat_letter(self):
+        if not self.seat_no:
+            return None
+        letters = ''.join(c for c in str(self.seat_no) if c.isalpha())
+        return letters or None
 
     def __repr__(self):
         repr_str = super(Reservation, self).__repr__()
 
         repr_str += ", %s원(%s석)" % (self.price, self.seat_no_count)
+        if self.car_no and self.seat_no:
+            car = str(self.car_no).lstrip('0') or str(self.car_no)
+            repr_str += ", %s호 %s" % (car, self.seat_no)
 
         buy_limit_time = "%s:%s" % (self.buy_limit_time[:2], self.buy_limit_time[2:4])
 
@@ -538,6 +560,17 @@ class SoldOutError(KorailError):
 
     def __init__(self, code=None):
         KorailError.__init__(self, "Sold out", code)
+
+
+class SeatLetterMismatchError(KorailError):
+    def __init__(self, seat_no, wanted):
+        KorailError.__init__(
+            self,
+            "Seat letter %s is not %s" % (seat_no, wanted),
+            "SEAT_LETTER",
+        )
+        self.seat_no = seat_no
+        self.wanted = wanted
 
 
 # noinspection PyUnresolvedReferences,PyRedeclaration
@@ -879,7 +912,122 @@ There are 4 types of Passengers now, AdultPassenger, ChildPassenger, ToddlerPass
 
             return trains
 
-    def reserve(self, train, passengers=None, option=ReserveOption.GENERAL_FIRST, try_waiting=False):
+    def _device_payload(self, extra=None):
+        data = {
+            'Device': self._device,
+            'Version': self._version,
+            'Key': self._key,
+        }
+        if extra:
+            data.update(extra)
+        return data
+
+    def reservation_detail(self, rsv_id):
+        url = KORAIL_RESERVATION_DETAIL
+        headers, payload = self._auth_context(url, self._device_payload({
+            'hidPnrNo': rsv_id,
+        }))
+        r = self._session.post(url, data=payload, headers=headers)
+        j = json.loads(r.text)
+        if self._result_check(j):
+            return j
+
+    def _hydrate_reservation(self, rsv):
+        try:
+            rsv.apply_seat_detail(self.reservation_detail(rsv.rsv_id))
+        except (KorailError, KeyError, TypeError, ValueError):
+            pass
+        return rsv
+
+    def _train_research_payload(self, train, seat_type, extra=None):
+        data = self._device_payload({
+            'txtArvRsStnCd': train.arr_code,
+            'txtArvStnRunOrdr': train.arr_stn_run_ordr or '',
+            'txtDptDt': train.dep_date,
+            'txtDptRsStnCd': train.dep_code,
+            'txtDptStnRunOrdr': train.dep_stn_run_ordr or '',
+            'txtGdNo': '',
+            'txtMenuId': '11',
+            'txtPsrmClCd': seat_type,
+            'txtRunDt': train.run_date,
+            'txtSeatAttCd': '015',
+            'txtTotPsgCnt': '1',
+            'txtTrnClsfCd': train.train_type,
+            'txtTrnGpCd': train.train_group,
+            'txtTrnNo': train.train_no,
+        })
+        if extra:
+            data.update(extra)
+        return data
+
+    def train_cars(self, train, seat_type='2'):
+        url = KORAIL_CARS_INFO
+        headers, payload = self._auth_context(
+            url, self._train_research_payload(train, seat_type)
+        )
+        r = self._session.post(url, data=payload, headers=headers)
+        j = json.loads(r.text)
+        if self._result_check(j):
+            return j['srcar_infos']['srcar_info']
+
+    def car_seats(self, train, car_no, seat_type='2'):
+        url = KORAIL_CAR_DETAIL
+        headers, payload = self._auth_context(url, self._train_research_payload(
+            train,
+            seat_type,
+            {'txtSrcarNo': car_no},
+        ))
+        r = self._session.post(url, data=payload, headers=headers)
+        j = json.loads(r.text)
+        if self._result_check(j):
+            return j
+
+    def find_seats(self, train, seat_type='2', letter=None, skip_end_cars=True):
+        cars = self.train_cars(train, seat_type)
+        if not cars:
+            return []
+        car_nos = sorted(int(c.get('h_srcar_no') or 0) for c in cars)
+        skip = set()
+        if skip_end_cars and len(car_nos) >= 3:
+            skip = {car_nos[0], car_nos[-1]}
+        found = []
+        wanted = letter.upper() if letter else None
+        for car in cars:
+            car_no = car.get('h_srcar_no')
+            try:
+                if int(car_no) in skip:
+                    continue
+            except (TypeError, ValueError):
+                pass
+            detail = self.car_seats(train, car_no, seat_type)
+            seats = ((detail.get('seat_infos') or {}).get('seat_info')) or []
+            for seat in seats:
+                if seat.get('h_sale_psb_flg') != 'Y':
+                    continue
+                label = seat.get('h_con_seat_no') or ''
+                if label == '0A':
+                    continue
+                if wanted and not str(label).upper().endswith(wanted):
+                    continue
+                found.append({
+                    'car_no': car_no,
+                    'seat_no': seat.get('h_seat_no'),
+                    'seat': label,
+                    'psrm_cl_cd': seat_type,
+                })
+        if not found:
+            return []
+        mids = sorted({int(item['car_no']) for item in found})
+        mid = mids[len(mids) // 2]
+
+        def _rank(item):
+            row = ''.join(c for c in str(item.get('seat') or '') if c.isdigit())
+            return (abs(int(item['car_no']) - mid), abs(int(row or 0) - 8))
+
+        found.sort(key=_rank)
+        return found
+
+    def reserve(self, train, passengers=None, option=ReserveOption.GENERAL_FIRST, try_waiting=False, seats=None, seat_letter=None, cancel_if_wrong_letter=True):
         """Reserve a train.
 
 :param train: An instance of `Train`.
@@ -899,6 +1047,12 @@ There are 4 options in ReserveOption class.
 :param option=try_waiting : (optional)
 
 When the train allows waiting, enroll for the waiting list instead of failing in case there are no seats in the train.
+
+:param seats: (optional) letskorail-style specified seats
+    ``[{'car_no': '0003', 'seat_no': '2A'}]``. Prefers residual-seat map.
+:param seat_letter: (optional) e.g. ``'A'``. Looks up residual seats first;
+    if auto-assign still gives another letter and cancel_if_wrong_letter,
+    the hold is cancelled.
 
         """
 
@@ -1002,14 +1156,37 @@ When the train allows waiting, enroll for the waiting list instead of failing in
             data.update(psg.get_dict(index))
             index += 1
 
+        if seats is None and seat_letter:
+            try:
+                mapped = self.find_seats(train, seat_type=seat_type, letter=seat_letter)
+            except (KorailError, KeyError, TypeError, ValueError):
+                mapped = []
+            if mapped:
+                seats = [mapped[0]]
+
+        if seats:
+            data['txtSrcarCnt'] = str(len(seats))
+            for idx, chosen in enumerate(seats, 1):
+                data['txtSrcarNo%s' % idx] = chosen['car_no']
+                data['txtSeatNo%s' % idx] = chosen['seat_no']
+
+        if seat_letter and seat_type == '2' and str(seat_letter).upper() == 'A':
+            data['txtSeatAttCd3'] = '011'
+
         headers, data = self._auth_context(url, data)
         r = self._session.get(url, params=data, headers=headers)
         j = json.loads(r.text)
         if self._result_check(j):
             rsv_id = j['h_pnr_no']
-            rsvlist = list(filter(lambda x: x.rsv_id == rsv_id, self.reservations()))
+            rsvlist = list(filter(lambda x: x.rsv_id == rsv_id, self.reservations(hydrate_seats=False)))
             if len(rsvlist) == 1:
-                return rsvlist[0]
+                rsv = self._hydrate_reservation(rsvlist[0])
+                if seat_letter and cancel_if_wrong_letter:
+                    got = rsv.seat_letter
+                    if not got or got.upper() != str(seat_letter).upper():
+                        self.cancel(rsv)
+                        raise SeatLetterMismatchError(rsv.seat_no, seat_letter)
+                return rsv
 
     def tickets(self):
         """Get list of tickets"""
@@ -1058,7 +1235,7 @@ When the train allows waiting, enroll for the waiting list instead of failing in
         except NoResultsError:
             return []
 
-    def reservations(self):
+    def reservations(self, hydrate_seats=True):
         """ Get My Reservations """
         url = KORAIL_MYRESERVATIONLIST
         data = {
@@ -1076,7 +1253,10 @@ When the train allows waiting, enroll for the waiting list instead of failing in
 
                 for info in rsv_infos:
                     for tinfo in info['train_infos']['train_info']:
-                        reserves.append(Reservation(tinfo))
+                        rsv = Reservation(tinfo)
+                        if hydrate_seats:
+                            self._hydrate_reservation(rsv)
+                        reserves.append(rsv)
                 return reserves
         except NoResultsError:
             return []

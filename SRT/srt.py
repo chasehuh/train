@@ -323,7 +323,13 @@ class SRT:
             trains.extend([SRTTrain(train) for train in _all_trains])
 
         # Filter SRT only, drop KTX, ITX, ...
-        trains = list(filter(lambda t: t.train_name == "SRT", trains))
+        # App now returns SRT as 00/0A/07 as well as 17
+        trains = list(
+            filter(
+                lambda t: t.train_name == "SRT" or t.train_code in ("00", "0A", "07", "17"),
+                trains,
+            )
+        )
 
         if available_only:
             trains = list(filter(lambda t: t.seat_available(), trains))
@@ -454,7 +460,9 @@ class SRT:
             "jrnyTpCd": "11",
             "jrnySqno1": "001",
             "stndFlg": "N",
-            "trnGpCd1": "300",  # 열차그룹코드 (좌석선택은 SRT만 가능하기때문에 무조건 300을 셋팅한다)"
+            "trnGpCd1": str(
+                (getattr(train, "raw", None) or {}).get("trnGpCd") or "300"
+            ),
             "trnGpCd": "109",  # 열차그룹코드
             "grpDv": "0",  # 단체 구분 (1: 단체)
             "rtnDv": "0",  # 편도 구분 (0: 편도, 1: 왕복)

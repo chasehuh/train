@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "train"
 version = "0.1.0"
-description = "Personal Korail + SRT search / watch / reserve CLI"
+description = "Personal Korail + SRT CLI with seat-letter holds"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
