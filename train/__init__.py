@@ -1,3 +1,1 @@
-"""Personal Korail + SRT booking CLI."""
-
-__version__ = "0.1.0"
+"""Personal Korail booking CLI + Railway per-job workers."""

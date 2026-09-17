@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "train"
-version = "0.1.0"
-description = "Personal Korail + SRT CLI with seat-letter holds"
+version = "0.2.0"
+description = "Personal Korail CLI with seat-letter holds and Railway per-job workers"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -15,8 +15,15 @@ dependencies = [
     "python-dotenv",
 ]
 
+[project.optional-dependencies]
+server = ["fastapi", "uvicorn", "httpx"]
+test = ["pytest", "httpx", "fastapi"]
+
 [project.scripts]
 train = "train.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["train", "korail2", "SRT"]
+packages = ["train", "korail2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
