@@ -155,8 +155,13 @@ class JobRunner:
         job = self.jobs.get(job_id)
         if job is None:
             return None
-        if job.status in TERMINAL:
-            return job
+        with self._lock:
+            if job.status in TERMINAL:
+                return job
+            if job.status == "provisioning":  # _provision notices and destroys the sandbox itself
+                job.status = "cancelled"
+                job.updated_at = _now()
+                return job
         self._finish(job, "cancelled")
         return job
 
@@ -187,10 +192,14 @@ class JobRunner:
             result = self.railway.exec(box["id"], start_script(job.id, job.spec), timeout_sec=60)
             if result.exit_code != 0 or "started" not in result.stdout:
                 raise RailwayError(f"worker start failed: {result.stderr[-300:] or result.stdout[-300:]}")
-            job.deadline_at = _now() + timedelta(minutes=job.spec.budget_minutes() + s.grace_minutes)
-            job.last_heartbeat = time.time()
-            job.status = "running"
-            job.updated_at = _now()
+            with self._lock:
+                if job.status != "provisioning":  # cancelled while we were booting
+                    self.railway.destroy_sandbox(box["id"])
+                    return
+                job.deadline_at = _now() + timedelta(minutes=job.spec.budget_minutes() + s.grace_minutes)
+                job.last_heartbeat = time.time()
+                job.status = "running"
+                job.updated_at = _now()
         except Exception as exc:  # noqa: BLE001 - surface any provisioning failure on the job
             job.error = f"{type(exc).__name__}: {exc}"
             self._finish(job, "failed")
@@ -269,7 +278,7 @@ class JobRunner:
                 status="running",
                 worker_id=box["id"],
                 created_at=created,
-                deadline_at=created + timedelta(minutes=spec.budget_minutes(created.replace(tzinfo=None)) + self.settings.grace_minutes),
+                deadline_at=created + timedelta(minutes=spec.budget_minutes(created) + self.settings.grace_minutes),
                 last_heartbeat=time.time(),
             )
             with self._lock:

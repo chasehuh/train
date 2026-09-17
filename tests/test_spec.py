@@ -66,10 +66,12 @@ def test_invalid_specs(patch, message):
 
 
 def test_budget_minutes_until_departure():
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     spec = JobSpec.from_dict(BASE)
     now = datetime(2026, 9, 18, 17, 0, 0)
-    assert spec.budget_minutes(now) == 45  # 30 min to departure + 15 grace
+    assert spec.budget_minutes(now) == 45  # naive now is KST: 30 min to departure + 15 grace
     assert spec.budget_minutes(datetime(2026, 9, 19)) == 1
+    utc_now = datetime(2026, 9, 18, 8, 0, 0, tzinfo=timezone.utc)  # 17:00 KST
+    assert spec.budget_minutes(utc_now) == 45
     assert JobSpec.from_dict({**BASE, "max_minutes": 7}).budget_minutes(now) == 7

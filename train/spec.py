@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 import shlex
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
+KST = ZoneInfo("Asia/Seoul")
 SEAT_CLASSES = ("any", "general", "special")
 MAX_MINUTES = 360
 FIELDS = {
@@ -110,13 +112,20 @@ class JobSpec:
         return json.dumps(self.to_dict(), ensure_ascii=False)
 
     def departure(self) -> datetime:
-        return datetime.strptime(self.date + self.time, "%Y%m%d%H%M%S")
+        """Departure as an aware datetime; Korail times are Korea Standard Time."""
+        return datetime.strptime(self.date + self.time, "%Y%m%d%H%M%S").replace(tzinfo=KST)
 
     def budget_minutes(self, now: datetime | None = None) -> int:
-        """Minutes a worker may run: explicit max_minutes, else until departure + 15."""
+        """Minutes a worker may run: explicit max_minutes, else until departure + 15.
+
+        A naive `now` is taken as KST; the default is the current UTC time, so the
+        result is the same on a laptop in Seoul and in a UTC container.
+        """
         if self.max_minutes:
             return self.max_minutes
-        now = now or datetime.now()
+        now = now or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=KST)
         until = self.departure() + timedelta(minutes=15) - now
         return max(1, min(MAX_MINUTES, int(until.total_seconds() // 60)))
 

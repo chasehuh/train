@@ -1,3 +1,4 @@
+import json
 import time
 
 from fastapi.testclient import TestClient
@@ -140,13 +141,26 @@ def test_reconcile_adopts_sandbox_with_spec():
     rw = FakeRailway()
     sid = rw.create_sandbox()["id"]
     rw.files[sid] = {"spec": '{"job_id": "job_old", "spec": %s, "created_at": "2026-09-18T08:00:00Z"}'
-                     % __import__("json").dumps(BODY, ensure_ascii=False)}
+                     % json.dumps(BODY, ensure_ascii=False)}
     rw.create_sandbox()  # someone else's sandbox, no spec.json
     runner = JobRunner(rw, Settings(poll_sec=3600))
     runner.reconcile()
     assert list(runner.jobs) == ["job_old"]
     assert runner.jobs["job_old"].worker_id == sid
     assert runner.jobs["job_old"].status == "running"
+
+
+def test_cancel_during_provisioning_destroys_the_sandbox():
+    rw = FakeRailway()
+    runner = JobRunner(rw, Settings(poll_sec=3600))
+    job = runner.create(JobSpec.from_dict(BODY))
+    runner.cancel(job.id)  # may race the provisioning thread either way
+    wait_status(runner, job.id, "cancelled")
+    end = time.time() + 5
+    while time.time() < end and not rw.destroyed and rw.boxes:
+        time.sleep(0.01)
+    assert job.status == "cancelled"
+    assert all(b["status"] == "DESTROYED" for b in rw.boxes.values())
 
 
 def test_status_helpers():

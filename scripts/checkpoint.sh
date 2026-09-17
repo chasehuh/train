@@ -20,21 +20,21 @@ shift $((OPTIND - 1))
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 NAME="${1:-train-$(git -C "$ROOT" rev-parse --short HEAD)}"
-RW=(railway)
-[[ -n $PROJECT ]] && RW+=(-p "$PROJECT")
-RW+=(-e "$ENVIRONMENT")
+FLAGS=(-e "$ENVIRONMENT")
+[[ -n $PROJECT ]] && FLAGS+=(-p "$PROJECT")
+sbx() { railway sandbox "$1" "${FLAGS[@]}" "${@:2}"; }
 
 quiet() { grep -v "Railway sandboxes are experimental\|newer Railway CLI\|railway upgrade" || true; }
 
 echo "==> creating build sandbox"
-ID=$("${RW[@]}" sandbox create --idle-timeout-minutes 10 --json 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-trap '"${RW[@]}" sandbox destroy "$ID" 2>&1 | quiet' EXIT
+ID=$(sbx create --idle-timeout-minutes 10 --json 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+trap '[[ -n ${ID:-} ]] && sbx destroy "$ID" 2>&1 | quiet' EXIT
 
 echo "==> installing checkout into $ID"
 tar -C "$ROOT" -czf - --exclude=.git --exclude=.venv --exclude='__pycache__' --exclude='*.egg-info' train korail2 pyproject.toml README.md \
-  | "${RW[@]}" sandbox exec --id "$ID" --timeout 600 -- bash -lc \
+  | sbx exec --id "$ID" --timeout 600 -- bash -lc \
     'set -e; mkdir -p /app && tar -C /app -xzf - 2>/dev/null; cd /app && pip install -q --disable-pip-version-check --root-user-action=ignore . && python3 -m train --help >/dev/null && echo install-ok' 2>&1 | quiet
 
 echo "==> capturing checkpoint $NAME"
-"${RW[@]}" sandbox checkpoint create --id "$ID" "$NAME" 2>&1 | quiet
+railway sandbox checkpoint create "${FLAGS[@]}" --id "$ID" "$NAME" 2>&1 | quiet
 echo "WORKER_TEMPLATE=$NAME"
