@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>train · 코레일 예매</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">K</span><span>승차권 예매</span></div>
+  <div class="who" id="who" hidden><span id="who-name"></span><button class="link" id="logout">로그아웃</button></div>
+</header>
+
+<main id="app">
+
+<section id="screen-login" class="screen">
+  <form id="login-form" class="card" autocomplete="off">
+    <h1>코레일 로그인</h1>
+    <p class="hint">회원번호 · 휴대폰번호 · 이메일 중 하나</p>
+    <label>아이디<input name="korail_id" inputmode="numeric" autocomplete="username" required></label>
+    <label>비밀번호<input name="korail_pw" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">로그인</button>
+    <p class="fine">비밀번호는 서버 메모리에만 머물고 저장되지 않습니다. 30분 미사용 시 자동 로그아웃. 5회 실패 시 15분 잠금(코레일 계정 보호).</p>
+    <p class="error" id="login-error" hidden></p>
+  </form>
+</section>
+
+<section id="screen-home" class="screen" hidden>
+  <nav class="tabs">
+    <button data-tab="book" class="active">예매</button>
+    <button data-tab="jobs">예약 시도 <span class="badge" id="jobs-badge" hidden></span></button>
+    <button data-tab="holds">예약 내역</button>
+  </nav>
+
+  <div id="tab-book" class="tab">
+    <form id="search-form" class="card">
+      <div class="stations">
+        <label>출발<input name="dep" list="stations" value="수서" required></label>
+        <button type="button" class="swap" id="swap" aria-label="출발/도착 바꾸기">⇄</button>
+        <label>도착<input name="arr" list="stations" value="동대구" required></label>
+      </div>
+      <datalist id="stations">
+        <option>서울</option><option>용산</option><option>수서</option><option>동탄</option><option>평택지제</option>
+        <option>광명</option><option>천안아산</option><option>오송</option><option>대전</option><option>김천구미</option>
+        <option>동대구</option><option>경주</option><option>울산</option><option>부산</option><option>포항</option>
+        <option>익산</option><option>정읍</option><option>광주송정</option><option>목포</option><option>전주</option>
+        <option>순천</option><option>여수EXPO</option><option>청량리</option><option>강릉</option><option>행신</option>
+        <option>마산</option><option>창원중앙</option><option>진주</option><option>청도</option><option>밀양</option>
+      </datalist>
+      <div class="row">
+        <label>가는 날<input name="date" type="date" required></label>
+        <label>출발 시각<select name="hour"></select></label>
+      </div>
+      <details><summary>상세 조건</summary>
+        <div class="row">
+          <label>마지막 출발<select name="end_hour"><option value="">제한 없음</option></select></label>
+          <label>열차번호<input name="trains" placeholder="347,351 (선택)"></label>
+        </div>
+      </details>
+      <button class="primary" type="submit">조회하기</button>
+      <p class="error" id="search-error" hidden></p>
+    </form>
+    <div id="results"></div>
+  </div>
+
+  <div id="tab-jobs" class="tab" hidden>
+    <p class="hint">각 시도는 코레일 IP 차단을 피하려고 <b>별도 Railway 샌드박스</b>(새 공인 IP)에서 돕니다. 좌석이 잡히면 텔레그램으로 알립니다. 결제는 코레일톡에서.</p>
+    <div id="jobs"></div>
+  </div>
+
+  <div id="tab-holds" class="tab" hidden>
+    <p class="hint">미결제 예약입니다. 결제 기한 안에 <b>코레일톡</b>에서 결제하세요.</p>
+    <button class="secondary" id="holds-refresh">새로고침</button>
+    <div id="holds"></div>
+  </div>
+</section>
+
+</main>
+
+<div id="sheet" class="sheet" hidden>
+  <form id="reserve-form" class="sheet-body">
+    <h2 id="sheet-title">예약 시도</h2>
+    <p id="sheet-sub" class="hint"></p>
+    <fieldset><legend>좌석 등급</legend>
+      <label class="chip"><input type="radio" name="seat_class" value="any" checked>상관없음</label>
+      <label class="chip"><input type="radio" name="seat_class" value="general">일반실</label>
+      <label class="chip"><input type="radio" name="seat_class" value="special">특실</label>
+    </fieldset>
+    <fieldset><legend>좌석 위치</legend>
+      <label class="chip"><input type="radio" name="seat_letter" value="" checked>무관</label>
+      <label class="chip"><input type="radio" name="seat_letter" value="A">A 창측</label>
+      <label class="chip"><input type="radio" name="seat_letter" value="B">B</label>
+      <label class="chip"><input type="radio" name="seat_letter" value="C">C</label>
+      <label class="chip"><input type="radio" name="seat_letter" value="D">D 창측</label>
+    </fieldset>
+    <div class="row">
+      <label>최대 시도 시간(분)<input name="max_minutes" type="number" min="1" max="360" value="60"></label>
+      <label>조회 간격(초)<input name="interval_sec" type="number" min="1" max="60" value="3"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="monitor_only">예약하지 않고 빈자리 알림만</label>
+    <div class="row">
+      <button type="button" class="secondary" id="sheet-cancel">닫기</button>
+      <button type="submit" class="primary">시도 시작</button>
+    </div>
+    <p class="error" id="sheet-error" hidden></p>
+  </form>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

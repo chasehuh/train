@@ -68,10 +68,12 @@ class Job:
     last_heartbeat: float = 0.0
     log_tail: str = ""
     error: str | None = None
+    owner: str | None = None  # masked Korail id of the web session that created it; never the password
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
+            "owner": self.owner,
             "status": self.status,
             "worker_kind": self.worker_kind,
             "worker_id": self.worker_id,
@@ -138,11 +140,14 @@ class JobRunner:
 
     # -- public --------------------------------------------------------------
 
-    def create(self, spec: JobSpec) -> Job:
-        job = Job(id="job_" + secrets.token_hex(4), spec=spec)
+    def create(self, spec: JobSpec, worker_env: dict[str, str] | None = None, owner: str | None = None) -> Job:
+        """Start a job. `worker_env` (e.g. session credentials) is injected into the
+        sandbox at create time only; it is not kept on the Job record."""
+        job = Job(id="job_" + secrets.token_hex(4), spec=spec, owner=owner)
         with self._lock:
             self.jobs[job.id] = job
-        threading.Thread(target=self._provision, args=(job,), daemon=True).start()
+        env = {**self.settings.worker_env, **(worker_env or {})}
+        threading.Thread(target=self._provision, args=(job, env), daemon=True).start()
         return job
 
     def get(self, job_id: str) -> Job | None:
@@ -175,11 +180,11 @@ class JobRunner:
 
     # -- lifecycle -----------------------------------------------------------
 
-    def _provision(self, job: Job) -> None:
+    def _provision(self, job: Job, worker_env: dict[str, str]) -> None:
         s = self.settings
         try:
             box = self.railway.create_sandbox(
-                variables=s.worker_env,
+                variables=worker_env,
                 idle_timeout_minutes=s.idle_timeout_minutes,
                 template_name=s.template_name,
                 region=s.region,
