@@ -6,9 +6,8 @@ import json
 import shlex
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
-KST = ZoneInfo("Asia/Seoul")
+KST = timezone(timedelta(hours=9), "KST")  # fixed offset: no DST in Korea, no tzdata needed on the worker image
 SEAT_CLASSES = ("any", "general", "special")
 MAX_MINUTES = 360
 FIELDS = {
